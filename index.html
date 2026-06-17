@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NYUrban Volleyball Tracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
+
+  :root {
+    --sand:    #F5F0E8;
+    --court:   #2D5016;
+    --court-lt:#3D6B20;
+    --net:     #C8A84B;
+    --sky:     #1A3A5C;
+    --open:    #22863A;
+    --full:    #B91C1C;
+    --warn:    #D97706;
+    --white:   #FFFFFF;
+    --gray50:  #F9FAFB;
+    --gray100: #F3F4F6;
+    --gray300: #D1D5DB;
+    --gray500: #6B7280;
+    --gray700: #374151;
+    --gray900: #111827;
+    --shadow:  0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+    --shadow-md:0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -1px rgba(0,0,0,.06);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--sand); color: var(--gray900); min-height: 100vh; }
+
+  /* ── Header ── */
+  header {
+    background: var(--court); color: var(--white);
+    padding: 0 1.5rem; position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  }
+  .header-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px; gap: 1rem;
+  }
+  .logo { display: flex; align-items: center; gap: .65rem; text-decoration: none; }
+  .logo-icon { width:36px; height:36px; background:var(--net); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+  .logo-text { font-family:'Space Grotesk',sans-serif; font-size:1.1rem; font-weight:700; color:var(--white); line-height:1.1; }
+  .logo-text span { color: var(--net); }
+  .header-actions { display:flex; align-items:center; gap:.75rem; }
+  .status-pill { display:flex; align-items:center; gap:.4rem; font-size:.78rem; font-weight:500; padding:.3rem .75rem; border-radius:999px; background:rgba(255,255,255,.12); color:var(--white); white-space:nowrap; }
+  .status-dot { width:7px; height:7px; border-radius:50%; background:var(--gray300); flex-shrink:0; }
+  .status-dot.live  { background:#4ADE80; animation:pulse 2s infinite; }
+  .status-dot.error { background:#F87171; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .btn { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem 1rem; border:none; border-radius:6px; font-family:inherit; font-size:.85rem; font-weight:600; cursor:pointer; transition:all .15s; text-decoration:none; }
+  .btn-primary { background:var(--net); color:var(--sky); }
+  .btn-primary:hover { background:#d4b456; }
+  .btn-primary:active { transform:scale(.97); }
+  .btn-outline { background:transparent; border:1.5px solid rgba(255,255,255,.35); color:var(--white); }
+  .btn-outline:hover { background:rgba(255,255,255,.1); }
+  .btn-sm { padding:.35rem .75rem; font-size:.8rem; }
+
+  /* ── Main ── */
+  main { max-width:1200px; margin:0 auto; padding:2rem 1.5rem 4rem; }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, var(--sky) 0%, #2563EB 100%);
+    border-radius:12px; padding:1.5rem 2rem; color:var(--white);
+    margin-bottom:1.75rem;
+    display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;
+  }
+  .hero h1 { font-family:'Space Grotesk',sans-serif; font-size:1.4rem; font-weight:700; margin-bottom:.25rem; }
+  .hero p  { font-size:.88rem; opacity:.8; }
+  .hero-stats { display:flex; gap:2rem; }
+  .stat { text-align:center; }
+  .stat-num { font-family:'Space Grotesk',sans-serif; font-size:2rem; font-weight:700; line-height:1; color:var(--net); }
+  .stat-lbl { font-size:.75rem; opacity:.75; margin-top:.15rem; }
+
+  /* ── Venue tabs ── */
+  .venue-tabs {
+    display:flex; gap:.4rem; margin-bottom:1.5rem;
+    overflow-x:auto; padding-bottom:.25rem;
+    scrollbar-width:thin;
+  }
+  .venue-tab {
+    flex-shrink:0;
+    padding:.45rem 1rem; border-radius:8px;
+    border:1.5px solid var(--gray300);
+    background:var(--white); font-size:.85rem; font-weight:500;
+    cursor:pointer; transition:all .15s; color:var(--gray700);
+    display:flex; align-items:center; gap:.45rem;
+  }
+  .venue-tab:hover:not(.active) { border-color:var(--court); color:var(--court); }
+  .venue-tab.active { background:var(--court); border-color:var(--court); color:var(--white); }
+  .venue-tab .tab-count {
+    font-size:.72rem; font-weight:700;
+    padding:.1rem .4rem; border-radius:999px;
+    background:rgba(255,255,255,.2);
+    min-width:18px; text-align:center;
+  }
+  .venue-tab:not(.active) .tab-count { background:var(--gray100); color:var(--gray500); }
+  .venue-tab .tab-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .tab-dot.has-open { background:#4ADE80; }
+  .tab-dot.all-full { background:#F87171; }
+  .tab-dot.empty    { background:var(--gray300); }
+
+  /* ── Filter bar ── */
+  .filter-bar { display:flex; align-items:center; gap:.75rem; margin-bottom:1.25rem; flex-wrap:wrap; }
+  .filter-label { font-size:.85rem; font-weight:500; color:var(--gray500); }
+  .filter-group { display:flex; gap:.4rem; flex-wrap:wrap; }
+  .filter-chip { padding:.3rem .85rem; border:1.5px solid var(--gray300); border-radius:999px; background:var(--white); font-size:.82rem; font-weight:500; cursor:pointer; transition:all .15s; color:var(--gray700); }
+  .filter-chip.active { background:var(--court); border-color:var(--court); color:var(--white); }
+  .filter-chip:hover:not(.active) { border-color:var(--court); color:var(--court); }
+
+  /* ── Meta bar ── */
+  .meta-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; flex-wrap:wrap; gap:.5rem; }
+  .last-updated { font-size:.8rem; color:var(--gray500); }
+
+  /* ── Games grid ── */
+  #games-container { min-height:200px; }
+  .games-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(310px, 1fr)); gap:1rem; }
+
+  .game-card { background:var(--white); border-radius:10px; border:1.5px solid var(--gray100); overflow:hidden; box-shadow:var(--shadow); transition:transform .15s, box-shadow .15s; display:flex; flex-direction:column; }
+  .game-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-md); }
+  .card-stripe { height:4px; }
+  .card-stripe.open    { background:var(--open); }
+  .card-stripe.full    { background:var(--full); }
+  .card-stripe.unknown { background:var(--warn); }
+
+  .card-body { padding:1rem 1.1rem; flex:1; }
+  .card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:.5rem; margin-bottom:.6rem; }
+  .card-venue { font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--gray500); }
+  .card-date  { font-family:'Space Grotesk',sans-serif; font-size:1rem; font-weight:700; color:var(--gray900); margin-bottom:.1rem; }
+  .card-time  { font-size:.82rem; color:var(--gray500); }
+
+  .card-meta { display:flex; flex-wrap:wrap; gap:.4rem; margin:.65rem 0; }
+  .meta-tag { display:inline-flex; align-items:center; gap:.3rem; padding:.2rem .55rem; background:var(--gray100); border-radius:4px; font-size:.78rem; color:var(--gray700); }
+
+  .spots-badge { display:inline-flex; align-items:center; gap:.35rem; padding:.3rem .75rem; border-radius:6px; font-size:.82rem; font-weight:600; }
+  .spots-badge.open    { background:#DCFCE7; color:#15803D; }
+  .spots-badge.full    { background:#FEE2E2; color:#B91C1C; }
+  .spots-badge.unknown { background:#FEF3C7; color:#92400E; }
+
+  .card-footer { padding:.7rem 1.1rem; border-top:1px solid var(--gray100); display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+  .card-fee { font-size:.82rem; color:var(--gray500); }
+
+  /* ── Error notice ── */
+  .venue-error { background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; padding:.65rem 1rem; margin-bottom:1rem; font-size:.82rem; color:#B91C1C; display:flex; align-items:center; gap:.5rem; }
+
+  /* ── Empty/loading states ── */
+  .state-card { background:var(--white); border-radius:10px; padding:3rem 2rem; text-align:center; border:1.5px dashed var(--gray300); }
+  .state-icon  { font-size:3rem; margin-bottom:1rem; }
+  .state-title { font-size:1.1rem; font-weight:600; margin-bottom:.4rem; }
+  .state-sub   { font-size:.88rem; color:var(--gray500); margin-bottom:1.25rem; }
+
+  /* ── Toast ── */
+  #toast-container { position:fixed; bottom:1.5rem; right:1.5rem; display:flex; flex-direction:column; gap:.5rem; z-index:999; }
+  .toast { background:var(--gray900); color:var(--white); padding:.75rem 1.1rem; border-radius:8px; font-size:.85rem; max-width:320px; box-shadow:var(--shadow-md); animation:slideIn .25s ease; }
+  .toast.success { background:var(--open); }
+  .toast.error   { background:var(--full); }
+  .toast.warn    { background:var(--warn); }
+  @keyframes slideIn { from{transform:translateX(110%);opacity:0} to{transform:translateX(0);opacity:1} }
+
+  /* ── New-spots banner ── */
+  #notif-banner { background:#FEF9C3; border:1px solid #FDE047; border-radius:8px; padding:.75rem 1.1rem; margin-bottom:1.25rem; font-size:.85rem; color:#713F12; display:none; align-items:center; gap:.5rem; }
+
+  /* ── Notif CTA ── */
+  .notif-cta { background:var(--white); border:1.5px solid var(--net); border-radius:8px; padding:.75rem 1.1rem; margin-bottom:1.25rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+  .notif-cta p { font-size:.85rem; color:var(--gray700); }
+  .notif-cta p strong { color:var(--court); }
+
+  @media (max-width:600px) {
+    .hero { padding:1.25rem; } .hero-stats { gap:1.25rem; } .stat-num { font-size:1.5rem; }
+    main { padding:1rem 1rem 3rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <a class="logo" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank" rel="noopener">
+      <div class="logo-icon">🏐</div>
+      <div class="logo-text">NYUrban <span>Volleyball</span></div>
+    </a>
+    <div class="header-actions">
+      <div class="status-pill">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">Connecting…</span>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="forceRefresh()" id="refresh-btn">↻ Refresh</button>
+      <a class="btn btn-primary btn-sm" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank" rel="noopener">Register ↗</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- Hero -->
+  <div class="hero">
+    <div>
+      <h1>🏐 Ticket Availability Tracker</h1>
+      <p>All venues · Auto-refreshes every 5 minutes · NYUrban Volleyball</p>
+    </div>
+    <div class="hero-stats">
+      <div class="stat"><div class="stat-num" id="stat-total">—</div><div class="stat-lbl">Total sessions</div></div>
+      <div class="stat"><div class="stat-num" id="stat-open">—</div><div class="stat-lbl">Available</div></div>
+      <div class="stat"><div class="stat-num" id="stat-full">—</div><div class="stat-lbl">Sold out</div></div>
+    </div>
+  </div>
+
+  <!-- Notification CTA -->
+  <div class="notif-cta" id="notif-cta" style="display:none">
+    <p>🔔 <strong>Get notified</strong> when new spots open up</p>
+    <button class="btn btn-primary btn-sm" onclick="requestNotifications()">Enable Notifications</button>
+  </div>
+
+  <!-- New-spots banner -->
+  <div id="notif-banner">🎉 <strong>New spots just opened!</strong> <span id="notif-detail"></span></div>
+
+  <!-- Venue tabs -->
+  <div class="venue-tabs" id="venue-tabs">
+    <button class="venue-tab active" data-venue="all" onclick="setVenue('all')">
+      <span class="tab-dot empty" id="dot-all"></span>
+      All Venues
+      <span class="tab-count" id="count-all">—</span>
+    </button>
+    <button class="venue-tab" data-venue="laguardia" onclick="setVenue('laguardia')">
+      <span class="tab-dot empty" id="dot-laguardia"></span>
+      Laguardia / Fri
+      <span class="tab-count" id="count-laguardia">—</span>
+    </button>
+    <button class="venue-tab" data-venue="beacon" onclick="setVenue('beacon')">
+      <span class="tab-dot empty" id="dot-beacon"></span>
+      Beacon / Fri
+      <span class="tab-count" id="count-beacon">—</span>
+    </button>
+    <button class="venue-tab" data-venue="brandeis-fri" onclick="setVenue('brandeis-fri')">
+      <span class="tab-dot empty" id="dot-brandeis-fri"></span>
+      Brandeis / Fri
+      <span class="tab-count" id="count-brandeis-fri">—</span>
+    </button>
+    <button class="venue-tab" data-venue="brandeis-sun" onclick="setVenue('brandeis-sun')">
+      <span class="tab-dot empty" id="dot-brandeis-sun"></span>
+      Brandeis / Sun
+      <span class="tab-count" id="count-brandeis-sun">—</span>
+    </button>
+    <button class="venue-tab" data-venue="clinics" onclick="setVenue('clinics')">
+      <span class="tab-dot empty" id="dot-clinics"></span>
+      Clinics
+      <span class="tab-count" id="count-clinics">—</span>
+    </button>
+  </div>
+
+  <!-- Availability filter -->
+  <div class="filter-bar">
+    <span class="filter-label">Show:</span>
+    <div class="filter-group">
+      <button class="filter-chip active" data-filter="all"  onclick="setFilter('all')">All</button>
+      <button class="filter-chip" data-filter="open"        onclick="setFilter('open')">Available only</button>
+      <button class="filter-chip" data-filter="full"        onclick="setFilter('full')">Sold out</button>
+    </div>
+  </div>
+
+  <!-- Meta bar -->
+  <div class="meta-bar">
+    <span class="last-updated" id="last-updated">Not yet fetched</span>
+    <span style="font-size:.8rem;color:var(--gray500)" id="filtered-count"></span>
+  </div>
+
+  <!-- Error notices -->
+  <div id="error-notices"></div>
+
+  <!-- Games -->
+  <div id="games-container">
+    <div class="state-card">
+      <div class="state-icon">⏳</div>
+      <div class="state-title">Fetching all venues…</div>
+      <div class="state-sub">Scraping Laguardia, Beacon, Brandeis & Clinics</div>
+    </div>
+  </div>
+</main>
+
+<div id="toast-container"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let allGames    = [];
+let activeVenue = 'all';
+let activeFilter= 'all';
+let notifGranted= false;
+let sse         = null;
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+function checkNotifPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default')  document.getElementById('notif-cta').style.display = 'flex';
+  if (Notification.permission === 'granted')  notifGranted = true;
+}
+function requestNotifications() {
+  Notification.requestPermission().then(p => {
+    if (p === 'granted') { notifGranted = true; document.getElementById('notif-cta').style.display = 'none'; toast('🔔 Notifications enabled!', 'success'); }
+    else toast('Notifications blocked — check browser settings', 'warn');
+  });
+}
+function sendNotification(title, body) {
+  if (!notifGranted) return;
+  try { new Notification(title, { body, icon: '🏐' }); } catch(_) {}
+}
+
+// ── Venue / filter ─────────────────────────────────────────────────────────────
+function setVenue(v) {
+  activeVenue = v;
+  document.querySelectorAll('.venue-tab').forEach(el => el.classList.toggle('active', el.dataset.venue === v));
+  renderGames();
+}
+function setFilter(f) {
+  activeFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(el => el.classList.toggle('active', el.dataset.filter === f));
+  renderGames();
+}
+
+// ── Tab counts + dots ──────────────────────────────────────────────────────────
+function updateTabs(games) {
+  const venueIds = ['laguardia','beacon','brandeis-fri','brandeis-sun','clinics'];
+  const allOpen = games.filter(g => g.available).length;
+
+  document.getElementById('count-all').textContent = games.length;
+  const dotAll = document.getElementById('dot-all');
+  dotAll.className = 'tab-dot ' + (allOpen > 0 ? 'has-open' : games.length > 0 ? 'all-full' : 'empty');
+
+  venueIds.forEach(vid => {
+    const vGames = games.filter(g => g.venueId === vid);
+    const vOpen  = vGames.filter(g => g.available).length;
+    const countEl = document.getElementById('count-' + vid);
+    const dotEl   = document.getElementById('dot-' + vid);
+    if (countEl) countEl.textContent = vGames.length || '0';
+    if (dotEl)   dotEl.className = 'tab-dot ' + (vGames.length === 0 ? 'empty' : vOpen > 0 ? 'has-open' : 'all-full');
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function availClass(g) {
+  if (g.available) return 'open';
+  const s = (g.spots||'').toLowerCase();
+  return (s.includes('full') || s.includes('sold')) ? 'full' : 'unknown';
+}
+
+function renderGames() {
+  const container = document.getElementById('games-container');
+
+  // Filter by venue
+  let visible = activeVenue === 'all' ? allGames : allGames.filter(g => g.venueId === activeVenue);
+  // Filter by availability
+  if (activeFilter === 'open') visible = visible.filter(g => g.available);
+  if (activeFilter === 'full') visible = visible.filter(g => !g.available);
+
+  // Stats (always whole dataset)
+  document.getElementById('stat-total').textContent = allGames.length;
+  document.getElementById('stat-open').textContent  = allGames.filter(g => g.available).length;
+  document.getElementById('stat-full').textContent  = allGames.filter(g => !g.available).length;
+
+  // Filtered count label
+  const total = activeVenue === 'all' ? allGames.length : allGames.filter(g => g.venueId === activeVenue).length;
+  document.getElementById('filtered-count').textContent =
+    visible.length !== total ? `Showing ${visible.length} of ${total}` : '';
+
+  if (allGames.length === 0) {
+    container.innerHTML = `
+      <div class="state-card">
+        <div class="state-icon">📭</div>
+        <div class="state-title">No sessions found yet</div>
+        <div class="state-sub">The server is scraping all venues. This can take a few seconds.</div>
+        <a class="btn btn-primary" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank">Check the site directly ↗</a>
+      </div>`;
+    return;
+  }
+
+  if (visible.length === 0) {
+    container.innerHTML = `
+      <div class="state-card">
+        <div class="state-icon">🔍</div>
+        <div class="state-title">No sessions match this filter</div>
+        <div class="state-sub">Try switching to "All" or selecting a different venue.</div>
+        <button class="btn btn-primary" onclick="setFilter('all');setVenue('all')">Show everything</button>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="games-grid">${visible.map(game => {
+    const cls = availClass(game);
+    const spotsText = game.spots || (game.available ? 'Available' : 'Sold Out');
+    return `
+<div class="game-card">
+  <div class="card-stripe ${cls}"></div>
+  <div class="card-body">
+    <div class="card-header">
+      <div>
+        <div class="card-venue">${esc(game.venueLabel)}</div>
+        <div class="card-date">${esc(game.date || 'Date TBD')}</div>
+        ${game.time ? `<div class="card-time">🕐 ${esc(game.time)}</div>` : ''}
+      </div>
+      <span class="spots-badge ${cls}">
+        ${cls==='open'?'✅':cls==='full'?'🔴':'⚠️'} ${esc(spotsText)}
+      </span>
+    </div>
+    <div class="card-meta">
+      ${game.gym   ? `<span class="meta-tag">📍 ${esc(game.gym)}</span>` : ''}
+      ${game.level ? `<span class="meta-tag">⚡ ${esc(game.level)}</span>` : ''}
+    </div>
+  </div>
+  <div class="card-footer">
+    <span class="card-fee">${game.fee ? '$' + esc(game.fee) : ''}</span>
+    <a class="btn btn-primary btn-sm" href="${esc(game.link)}" target="_blank" rel="noopener">
+      ${game.available ? 'Register ↗' : 'View ↗'}
+    </a>
+  </div>
+</div>`;
+  }).join('')}</div>`;
+}
+
+// ── Error notices ──────────────────────────────────────────────────────────────
+function renderErrors(errors) {
+  const container = document.getElementById('error-notices');
+  if (!errors || Object.keys(errors).length === 0) { container.innerHTML = ''; return; }
+  container.innerHTML = Object.entries(errors).map(([vid, msg]) =>
+    `<div class="venue-error">⚠️ <strong>${esc(vid)}</strong>: ${esc(msg)} — data may be stale</div>`
+  ).join('');
+}
+
+// ── Status ─────────────────────────────────────────────────────────────────────
+function setStatus(state, text) {
+  document.getElementById('status-dot').className  = 'status-dot ' + (state==='live'?'live':state==='error'?'error':'');
+  document.getElementById('status-text').textContent = text;
+}
+function updateLastUpdated(ts) {
+  if (!ts) return;
+  document.getElementById('last-updated').textContent =
+    'Last updated: ' + new Date(ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────────
+function toast(msg, type='') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 4500);
+}
+
+// ── Force refresh ──────────────────────────────────────────────────────────────
+function forceRefresh() {
+  const btn = document.getElementById('refresh-btn');
+  btn.textContent = '↻ …'; btn.disabled = true;
+  fetch('/api/refresh', {method:'POST'})
+    .then(() => toast('Refresh triggered — scraping all venues'))
+    .catch(() => toast('Refresh failed', 'error'))
+    .finally(() => setTimeout(() => { btn.textContent = '↻ Refresh'; btn.disabled = false; }, 3000));
+}
+
+// ── Initial fetch ──────────────────────────────────────────────────────────────
+function fetchGames() {
+  fetch('/api/games')
+    .then(r => r.json())
+    .then(data => {
+      allGames = data.games || [];
+      updateTabs(allGames);
+      renderGames();
+      renderErrors(data.errors);
+      updateLastUpdated(data.lastScrape);
+      setStatus('live', 'Live');
+    })
+    .catch(() => {
+      setStatus('error', 'Server unreachable');
+      document.getElementById('games-container').innerHTML = `
+        <div class="state-card">
+          <div class="state-icon">⚠️</div>
+          <div class="state-title">Can't reach the server</div>
+          <div class="state-sub">Make sure the Node.js server is running on port 3333.</div>
+          <button class="btn btn-primary" onclick="fetchGames()">Retry</button>
+        </div>`;
+    });
+}
+
+// ── SSE ────────────────────────────────────────────────────────────────────────
+function connectSSE() {
+  if (sse) sse.close();
+  sse = new EventSource('/api/stream');
+
+  sse.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.type === 'connected' || data.type === 'update') {
+      allGames = data.games || [];
+      updateTabs(allGames);
+      renderGames();
+      renderErrors(data.errors);
+      updateLastUpdated(data.timestamp || data.lastScrape);
+      setStatus('live', 'Live');
+    }
+    if (data.type === 'new_available') {
+      const count = data.games.length;
+      const venues = [...new Set(data.games.map(g => g.venueLabel))].join(', ');
+      document.getElementById('notif-detail').textContent = `${count} slot${count>1?'s':''} at ${venues}`;
+      const banner = document.getElementById('notif-banner');
+      banner.style.display = 'flex';
+      setTimeout(() => { banner.style.display = 'none'; }, 15000);
+      sendNotification('🏐 Volleyball spots opened!', `${count} slot${count>1?'s':''} available at ${venues}`);
+      toast(`🎉 ${count} new slot${count>1?'s':''} at ${venues}!`, 'success');
+    }
+    if (data.type === 'error') {
+      setStatus('error', 'Scrape error');
+    }
+  };
+
+  sse.onerror = () => {
+    setStatus('error', 'Reconnecting…');
+    sse.close();
+    setTimeout(connectSSE, 5000);
+  };
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────────
+checkNotifPermission();
+fetchGames();
+connectSSE();
+</script>
+</body>
+</html>
