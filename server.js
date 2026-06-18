@@ -189,8 +189,6 @@ function parseTable(html, venue) {
       spots    : spotsRaw,
       available,
       link     : PAGE_URL,
-      filterId : venue.filterId,
-      buttonId : venue.buttonId,
     });
     rowIdx++;
   }
@@ -305,57 +303,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // Relay page: opens nyurban and auto-clicks the right venue tab
-  const goMatch = pathname.match(/^\/go\/(\d+)$/);
-  if (goMatch) {
-    const buttonId = parseInt(goMatch[1], 10);
-    const venue    = VENUES.find(v => v.buttonId === buttonId) || VENUES[0];
-    const relay    = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Opening ${venue.label}…</title>
-<style>
-  body { font-family: system-ui, sans-serif; display:flex; align-items:center; justify-content:center;
-         min-height:100vh; margin:0; background:#1A3A5C; color:#fff; flex-direction:column; gap:1rem; }
-  p { opacity:.7; font-size:.9rem; }
-  a { color:#C8A84B; }
-</style>
-</head>
-<body>
-<div style="font-size:2rem">🏐</div>
-<div style="font-size:1.1rem;font-weight:600">Opening ${venue.label}…</div>
-<p>If the page doesn't open automatically, <a href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank">click here</a>.</p>
-<script>
-  // Open the main nyurban page, then trigger the correct tab via postMessage / opener
-  var w = window.open('https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1', '_blank');
-  // After the page loads, call SwitchMenu for the correct tab
-  var buttonId = ${buttonId};
-  var filterId = ${venue.filterId};
-  var attempts = 0;
-  var timer = setInterval(function() {
-    attempts++;
-    try {
-      if (w && w.SwitchMenu) {
-        w.SwitchMenu(buttonId, '1', filterId, 'https://www.nyurban.com/wp-admin/admin-ajax.php', 'active');
-        clearInterval(timer);
-      }
-    } catch(e) {}
-    if (attempts > 40) {
-      clearInterval(timer);
-      // Cross-origin blocks us — redirect instead so user at least gets the page
-      window.location.href = 'https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1';
-    }
-  }, 250);
-<\/script>
-</body>
-</html>`;
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    return res.end(relay);
-  }
-
-  res.writeHead(404); res.end('Not found');
-});
+    res.writeHead(404); res.end('Not found');});
 
 server.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n🏐 Volleyball Ticket Tracker — All Venues`);

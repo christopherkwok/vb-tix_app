@@ -167,6 +167,8 @@
   .spots-badge.unknown { background:#FEF3C7; color:#92400E; }
 
   .card-footer { padding:.7rem 1.1rem; border-top:1px solid var(--gray100); display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+  .tab-hint { font-size:.72rem; color:var(--gray500); margin-top:.25rem; text-align:right; }
+  .tab-hint strong { color:var(--court); }
   .card-fee { font-size:.82rem; color:var(--gray500); }
 
   /* ── Error notice ── */
@@ -564,9 +566,12 @@ function renderGames() {
   </div>
   <div class="card-footer">
     <span class="card-fee">${game.fee ? '$' + esc(game.fee) : ''}</span>
-    <a class="btn btn-primary btn-sm" href="/go/${game.buttonId || 1}" target="_blank" rel="noopener">
-      ${game.available ? 'Register ↗' : 'View ↗'}
-    </a>
+    <div style="text-align:right">
+      <a class="btn btn-primary btn-sm" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank" rel="noopener">
+        ${game.available ? 'Register ↗' : 'View ↗'}
+      </a>
+      <div class="tab-hint">then click <strong>${esc(game.venueLabel)}</strong></div>
+    </div>
   </div>
 </div>`;
   }).join('')}</div>`;
