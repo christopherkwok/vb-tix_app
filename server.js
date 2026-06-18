@@ -2,10 +2,6 @@
 /**
  * NYUrban Volleyball Ticket Tracker — All venues
  * Pure Node.js, zero dependencies
- *
- * AJAX call (from openplay.js):
- *   POST /wp-admin/admin-ajax.php
- *   action=my_open_play_contentbb&buttonid=1&gametypeid=1&filterid=FILTERID
  */
 
 const http = require('http');
@@ -14,12 +10,11 @@ const path  = require('path');
 const fs    = require('fs');
 const url   = require('url');
 
-const PORT     = 3333;
-const AJAX_URL = 'https://www.nyurban.com/wp-admin/admin-ajax.php';
-const PAGE_URL = 'https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1';
+const PORT          = 3333;
+const AJAX_URL      = 'https://www.nyurban.com/wp-admin/admin-ajax.php';
+const PAGE_URL      = 'https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1';
+const NOTIF_FILE    = path.join(__dirname, 'notifications.json');
 
-// buttonid=1 works for all venues; filterid distinguishes them
-// (confirmed from SwitchMenu calls on the main page)
 const VENUES = [
   { id: 'laguardia',    label: 'Laguardia / Fri',  filterId: 35, buttonId: 1 },
   { id: 'beacon',       label: 'Beacon / Fri',      filterId: 34, buttonId: 2 },
@@ -35,11 +30,155 @@ let scrapeErrors = {};
 let subscribers  = [];
 let previousIds  = new Set();
 
+// ── Notification config ───────────────────────────────────────────────────────
+// notifications.json schema:
+// {
+//   "email": "you@example.com",
+//   "gmailUser": "sender@gmail.com",
+//   "gmailPass": "app-password-here",
+//   "rules": [
+//     {
+//       "id": "rule-1",
+//       "label": "Beacon Advanced Friday nights",
+//       "enabled": true,
+//       "filters": {
+//         "gym":        "Beacon",        // partial match, case-insensitive; "" = any
+//         "date":       "",              // e.g. "06/27" or "Fri" — partial match
+//         "time":       "7:00 pm",       // partial match
+//         "court":      "",              // exact match after normalisation; "" = any
+//         "difficulty": "Advanced"       // exact match; "" = any
+//       }
+//     }
+//   ]
+// }
+
+function loadNotifConfig() {
+  try {
+    if (fs.existsSync(NOTIF_FILE)) {
+      return JSON.parse(fs.readFileSync(NOTIF_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('[notif] Failed to load config:', e.message);
+  }
+  return { email: '', gmailUser: '', gmailPass: '', rules: [] };
+}
+
+function saveNotifConfig(cfg) {
+  try {
+    fs.writeFileSync(NOTIF_FILE, JSON.stringify(cfg, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('[notif] Failed to save config:', e.message);
+    return false;
+  }
+}
+
+let notifConfig = loadNotifConfig();
+
+// ── Email via Gmail SMTP (no deps — raw SMTP over TLS) ────────────────────────
+// We use nodemailer-style approach but with Node's built-in tls module.
+// Since we can't install nodemailer, we use the Gmail API via HTTPS instead.
+// For simplicity we use a free SMTP relay: smtp.gmail.com via the net/tls module.
+// Actually the zero-dep approach: use Gmail's REST API with an OAuth2 token —
+// too complex. Instead we POST to a simple free relay or use Resend.
+// We implement both: Gmail App Password (nodemailer when available) + Resend fallback.
+async function sendEmail(subject, body, cfg) {
+  if (!cfg.email) return;
+
+  // Try nodemailer if available (user ran: npm install nodemailer)
+  try {
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: cfg.gmailUser, pass: cfg.gmailPass },
+    });
+    await transporter.sendMail({
+      from   : cfg.gmailUser,
+      to     : cfg.email,
+      subject,
+      text   : body,
+    });
+    console.log(`[notif] Email sent to ${cfg.email}`);
+    return;
+  } catch (e) {
+    if (e.code !== 'MODULE_NOT_FOUND') {
+      console.error('[notif] Gmail error:', e.message);
+      return;
+    }
+  }
+
+  // Fallback: Resend API (free, no npm needed) if resendKey is configured
+  if (cfg.resendKey) {
+    const payload = JSON.stringify({
+      from   : 'onboarding@resend.dev',
+      to     : [cfg.email],
+      subject,
+      text   : body,
+    });
+    return new Promise((resolve) => {
+      const req = https.request({
+        hostname: 'api.resend.com',
+        path    : '/emails',
+        method  : 'POST',
+        headers : {
+          'Authorization': `Bearer ${cfg.resendKey}`,
+          'Content-Type' : 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      }, res => {
+        let d = ''; res.on('data', c => d += c);
+        res.on('end', () => {
+          console.log(`[notif] Resend response ${res.statusCode}: ${d.slice(0,80)}`);
+          resolve();
+        });
+      });
+      req.on('error', e => { console.error('[notif] Resend error:', e.message); resolve(); });
+      req.write(payload); req.end();
+    });
+  }
+
+  console.log('[notif] No email transport configured (set gmailUser/gmailPass or resendKey)');
+}
+
+// ── Rule matching ─────────────────────────────────────────────────────────────
+function gameMatchesRule(game, rule) {
+  if (!rule.enabled) return false;
+  const f = rule.filters || {};
+  const ci = (a, b) => a.toLowerCase().includes(b.toLowerCase());
+
+  if (f.gym        && !ci(game.gym        || '', f.gym))        return false;
+  if (f.date       && !ci(game.date       || '', f.date))       return false;
+  if (f.time       && !ci(game.time       || '', f.time))       return false;
+  if (f.difficulty && (game.difficulty || '').toLowerCase() !== f.difficulty.toLowerCase()) return false;
+  if (f.court      && (game.court      || '').toLowerCase() !== f.court.toLowerCase())      return false;
+  return true;
+}
+
+async function processNotifications(newGames) {
+  const cfg = notifConfig;
+  if (!cfg.email || !cfg.rules || cfg.rules.length === 0) return;
+
+  // For each rule, find newly available games that match
+  for (const rule of cfg.rules) {
+    if (!rule.enabled) continue;
+    const matched = newGames.filter(g => gameMatchesRule(g, rule));
+    if (matched.length === 0) continue;
+
+    const lines = matched.map(g =>
+      `• ${g.venueLabel} | ${g.date} | ${g.time} | ${g.difficulty}${g.court !== 'N/A' ? ' | ' + g.court : ''} | ${g.gym} | ${g.spots} spots`
+    ).join('\n');
+
+    const subject = `🏐 [${rule.label}] ${matched.length} spot${matched.length > 1 ? 's' : ''} just opened!`;
+    const body = `Your alert "${rule.label}" matched ${matched.length} newly available session${matched.length > 1 ? 's' : ''}:\n\n${lines}\n\nRegister now: ${PAGE_URL}`;
+
+    console.log(`[notif] Rule "${rule.label}" matched ${matched.length} games → emailing ${cfg.email}`);
+    await sendEmail(subject, body, cfg);
+  }
+}
+
 // ── HTTP ──────────────────────────────────────────────────────────────────────
 function postAjax(filterid, buttonid) {
   return new Promise((resolve, reject) => {
-    // Exact format from openplay.js:
-    // "action=my_open_play_contentbb&buttonid="+obj+"&gametypeid="+gametypeid+"&filterid="+filterid
     const body = `action=my_open_play_contentbb&buttonid=${buttonid}&gametypeid=1&filterid=${filterid}`;
     const parsed = new URL(AJAX_URL);
     const req = https.request({
@@ -78,20 +217,26 @@ function htmlDecode(s) {
 }
 function stripTags(s) { return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); }
 
+function expandLevel(s) {
+  return s
+    .replace(/\bBeg\.?\/Int\.?\b/gi,  'Beginner/Intermediate')
+    .replace(/\bInt\.?\/Adv\.?\b/gi,  'Intermediate/Advanced')
+    .replace(/\bAdv\.?\/Int\.?\b/gi,  'Advanced/Intermediate')
+    .replace(/\bAdv\.?\b/gi,          'Advanced')
+    .replace(/\bInt\.?\b/gi,          'Intermediate')
+    .replace(/\bBeg\.?\b/gi,          'Beginner');
+}
+
 function parseTable(html, venue) {
   const games = [];
-
-  // Check for "no sessions" message
-  if (/NO OPEN SESSION/i.test(html)) {
-    return [];
-  }
+  if (/NO OPEN SESSION/i.test(html)) return [];
 
   const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-  let trMatch, rowIdx = 0;
+  let trMatch;
 
   while ((trMatch = trRegex.exec(html)) !== null) {
     const row = trMatch[1];
-    if (/<th/i.test(row)) continue; // skip header
+    if (/<th/i.test(row)) continue;
 
     const cells = [];
     const tdRe = /<td[^>]*>([\s\S]*?)<\/td>/gi;
@@ -99,10 +244,8 @@ function parseTable(html, venue) {
     while ((tdMatch = tdRe.exec(row)) !== null) {
       cells.push(htmlDecode(stripTags(tdMatch[1])));
     }
-
     if (cells.length < 4) continue;
 
-    // Find date column — NYUrban format: "Fri 06/27" or "06/27/25"
     let dateIdx = -1;
     for (let i = 0; i < cells.length; i++) {
       if (/\b(mon|tue|wed|thu|fri|sat|sun)\s+\d{1,2}\/\d{1,2}/i.test(cells[i]) ||
@@ -112,7 +255,6 @@ function parseTable(html, venue) {
     }
     if (dateIdx === -1) continue;
 
-    // Columns: [select checkbox] Date | Gym | Level | Time | Fee | Available
     const date     = cells[dateIdx]     || '';
     const gym      = cells[dateIdx + 1] || '';
     const level    = cells[dateIdx + 2] || '';
@@ -120,51 +262,20 @@ function parseTable(html, venue) {
     const fee      = cells[dateIdx + 4] || '';
     const spotsRaw = cells[dateIdx + 5] || cells[cells.length - 1] || '';
 
-    // Available column: a number > 0 = open; "Sold Out" or 0 = full
     const spotsNum = parseInt(spotsRaw, 10);
     const isFull   = /sold\s*out/i.test(spotsRaw) ||
                      spotsRaw.trim() === '0' ||
                      (!isNaN(spotsNum) && spotsNum === 0);
     const available = !isFull && spotsRaw.trim() !== '';
 
-    // Parse difficulty and court out of the level field.
-    // Examples from the site:
-    //   "Intermediate - Court 1"      → difficulty="Intermediate",          court="Court 1"
-    //   "Intermediate - Small Ct"     → difficulty="Intermediate",          court="Small Ct"
-    //   "Advanced"                    → difficulty="Advanced",               court="N/A"
-    //   "Beginner/Intermediate"       → difficulty="Beginner/Intermediate",  court="N/A"
-    //   "Beg./Int. - Small Ct"        → difficulty="Beginner/Intermediate",  court="Small Ct"
-    //   "Beg. - Court 1"              → difficulty="Beginner",               court="Court 1"
-    //   "Int. - Court 2"              → difficulty="Intermediate",           court="Court 2"
-    //   "Adv. - Small Ct"             → difficulty="Advanced",               court="Small Ct"
-
-    // Step 1: expand abbreviated level names before any splitting.
-    // Combined patterns (Beg./Int.) MUST come before individual ones (Beg.)
-    // to avoid partial substitution producing "Beginner/Int." etc.
-    function expandLevel(s) {
-      return s
-        // Combined first
-        .replace(/\bBeg\.?\/Int\.?\b/gi,  'Beginner/Intermediate')
-        .replace(/\bInt\.?\/Adv\.?\b/gi,  'Intermediate/Advanced')
-        .replace(/\bAdv\.?\/Int\.?\b/gi,  'Advanced/Intermediate')
-        // Individual after
-        .replace(/\bAdv\.?\b/gi,            'Advanced')
-        .replace(/\bInt\.?\b/gi,            'Intermediate')
-        .replace(/\bBeg\.?\b/gi,            'Beginner');
-    }
     const expandedLevel = expandLevel(level);
-
     let difficulty = expandedLevel;
     let court      = 'N/A';
     const dashIdx = expandedLevel.indexOf(' - ');
     if (dashIdx !== -1) {
       difficulty = expandedLevel.slice(0, dashIdx).trim();
       const courtRaw = expandedLevel.slice(dashIdx + 3).trim();
-      if (/small\s*ct/i.test(courtRaw)) {
-        court = 'Small Ct';
-      } else {
-        court = courtRaw || 'N/A';
-      }
+      court = /small\s*ct/i.test(courtRaw) ? 'Small Ct' : (courtRaw || 'N/A');
     } else {
       const courtMatch = expandedLevel.match(/\b(Court\s*\d+|Small\s*Ct\.?)\b/i);
       if (courtMatch) {
@@ -172,39 +283,28 @@ function parseTable(html, venue) {
         difficulty = expandedLevel.replace(courtMatch[1], '').replace(/[-–,]/g, '').trim() || expandedLevel;
       }
     }
-
-    // Strip leading/trailing punctuation but preserve "/" between words (e.g. Beginner/Intermediate)
-    difficulty = difficulty.replace(/^[^a-zA-Z]+/, '').replace(/[^a-zA-Z)]+$/, '').trim();
-
-    // Normalise capitalisation
+    difficulty = difficulty.replace(/^[^a-zA-Z]+/, '').replace(/[^a-zA-Z/)]+$/, '').trim();
     difficulty = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
 
     const id = `${venue.id}::${date}::${level}`.replace(/\s+/g, '-').toLowerCase();
 
     games.push({
-      id,
-      venueId   : venue.id,
-      venueLabel: venue.label,
+      id, venueId: venue.id, venueLabel: venue.label,
       date, gym, level, difficulty, court, time, fee,
-      spots    : spotsRaw,
-      available,
-      link     : PAGE_URL,
+      spots: spotsRaw, available, link: PAGE_URL,
     });
-    rowIdx++;
   }
-
   return games;
 }
 
-// ── Scrape one venue ──────────────────────────────────────────────────────────
+// ── Scrape ────────────────────────────────────────────────────────────────────
 async function scrapeVenue(venue) {
   const { status, body } = await postAjax(venue.filterId, venue.buttonId);
   if (status !== 200) throw new Error(`HTTP ${status}`);
-  if (body === '0' || body === '' || body === 'false') throw new Error('Empty response from server');
+  if (body === '0' || body === '' || body === 'false') throw new Error('Empty response');
   return parseTable(body, venue);
 }
 
-// ── Scrape all venues ─────────────────────────────────────────────────────────
 async function scrapeAll() {
   console.log(`\n[${new Date().toISOString()}] Scraping all venues…`);
   const results = [];
@@ -234,6 +334,7 @@ async function scrapeAll() {
   broadcast({ type: 'update', games: results, timestamp: lastScrape, errors });
   if (newlyAvailable.length > 0) {
     broadcast({ type: 'new_available', games: newlyAvailable, timestamp: lastScrape });
+    await processNotifications(newlyAvailable);
   }
 }
 
@@ -258,11 +359,20 @@ function sendJSON(res, code, data) {
   res.end(JSON.stringify(data));
 }
 
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let d = '';
+    req.on('data', c => d += c);
+    req.on('end', () => resolve(d));
+    req.on('error', reject);
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   const { pathname } = url.parse(req.url, true);
 
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST' });
+    res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE' });
     return res.end();
   }
 
@@ -295,6 +405,89 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Notification config API ────────────────────────────────────────────────
+
+  // GET /api/notifications — return current config (mask password)
+  if (pathname === '/api/notifications' && req.method === 'GET') {
+    const safe = { ...notifConfig, gmailPass: notifConfig.gmailPass ? '••••••••' : '', resendKey: notifConfig.resendKey ? '••••••••' : '' };
+    return sendJSON(res, 200, safe);
+  }
+
+  // PUT /api/notifications — save email settings
+  if (pathname === '/api/notifications' && req.method === 'PUT') {
+    try {
+      const body = JSON.parse(await readBody(req));
+      // Only update credential fields if they weren't masked
+      if (body.gmailPass && body.gmailPass !== '••••••••') notifConfig.gmailPass = body.gmailPass;
+      if (body.resendKey && body.resendKey !== '••••••••') notifConfig.resendKey = body.resendKey;
+      notifConfig.email     = body.email     || notifConfig.email;
+      notifConfig.gmailUser = body.gmailUser || notifConfig.gmailUser;
+      saveNotifConfig(notifConfig);
+      return sendJSON(res, 200, { ok: true });
+    } catch (e) {
+      return sendJSON(res, 400, { error: e.message });
+    }
+  }
+
+  // GET /api/notifications/rules — list rules
+  if (pathname === '/api/notifications/rules' && req.method === 'GET') {
+    return sendJSON(res, 200, notifConfig.rules || []);
+  }
+
+  // POST /api/notifications/rules — add a rule
+  if (pathname === '/api/notifications/rules' && req.method === 'POST') {
+    try {
+      const rule = JSON.parse(await readBody(req));
+      rule.id = `rule-${Date.now()}`;
+      if (!rule.label) rule.label = 'Alert ' + (notifConfig.rules.length + 1);
+      if (rule.enabled === undefined) rule.enabled = true;
+      if (!rule.filters) rule.filters = {};
+      notifConfig.rules.push(rule);
+      saveNotifConfig(notifConfig);
+      return sendJSON(res, 201, rule);
+    } catch (e) {
+      return sendJSON(res, 400, { error: e.message });
+    }
+  }
+
+  // PUT /api/notifications/rules/:id — update a rule
+  const ruleUpdateMatch = pathname.match(/^\/api\/notifications\/rules\/(.+)$/) ;
+  if (ruleUpdateMatch && req.method === 'PUT') {
+    try {
+      const id   = ruleUpdateMatch[1];
+      const data = JSON.parse(await readBody(req));
+      const idx  = notifConfig.rules.findIndex(r => r.id === id);
+      if (idx === -1) return sendJSON(res, 404, { error: 'Rule not found' });
+      notifConfig.rules[idx] = { ...notifConfig.rules[idx], ...data, id };
+      saveNotifConfig(notifConfig);
+      return sendJSON(res, 200, notifConfig.rules[idx]);
+    } catch (e) {
+      return sendJSON(res, 400, { error: e.message });
+    }
+  }
+
+  // DELETE /api/notifications/rules/:id
+  const ruleDeleteMatch = pathname.match(/^\/api\/notifications\/rules\/(.+)$/);
+  if (ruleDeleteMatch && req.method === 'DELETE') {
+    const id  = ruleDeleteMatch[1];
+    const idx = notifConfig.rules.findIndex(r => r.id === id);
+    if (idx === -1) return sendJSON(res, 404, { error: 'Rule not found' });
+    notifConfig.rules.splice(idx, 1);
+    saveNotifConfig(notifConfig);
+    return sendJSON(res, 200, { ok: true });
+  }
+
+  // POST /api/notifications/test — send a test email
+  if (pathname === '/api/notifications/test' && req.method === 'POST') {
+    if (!notifConfig.email) return sendJSON(res, 400, { error: 'No email configured' });
+    sendEmail(
+      '🏐 NYUrban Tracker — Test Notification',
+      `This is a test email from your NYUrban Volleyball Tracker.\n\nYour notification settings are working correctly!\n\nTracker URL: http://localhost:${PORT}`,
+      notifConfig
+    ).catch(e => console.error('[notif] Test email error:', e.message));
+    return sendJSON(res, 200, { ok: true, message: `Test email sent to ${notifConfig.email}` });
+  }
+
   if (pathname === '/' || pathname === '/index.html') {
     const p = path.join(__dirname, 'index.html');
     if (fs.existsSync(p)) {
@@ -303,7 +496,8 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-    res.writeHead(404); res.end('Not found');});
+  res.writeHead(404); res.end('Not found');
+});
 
 server.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n🏐 Volleyball Ticket Tracker — All Venues`);

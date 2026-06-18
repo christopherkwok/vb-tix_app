@@ -112,6 +112,34 @@
   .filter-chip.active { background:var(--court); border-color:var(--court); color:var(--white); }
   .filter-chip:hover:not(.active) { border-color:var(--court); color:var(--court); }
 
+
+  /* ── Sort bar ── */
+  .sort-bar { display:flex; align-items:center; gap:.6rem; margin-bottom:1.25rem; flex-wrap:wrap; }
+  .sort-label { font-size:.85rem; font-weight:500; color:var(--gray500); white-space:nowrap; flex-shrink:0; }
+  .sort-chips { display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
+  .sort-chip {
+    display:inline-flex; align-items:center; gap:.3rem;
+    padding:.28rem .65rem;
+    border:1.5px solid var(--gray300); border-radius:6px;
+    background:var(--white); font-size:.8rem; font-weight:500;
+    cursor:pointer; user-select:none; transition:all .15s;
+    color:var(--gray600);
+  }
+  .sort-chip:hover { border-color:var(--court); color:var(--court); }
+  .sort-chip.active {
+    background:var(--court); border-color:var(--court); color:var(--white);
+  }
+  .sort-chip .sort-dir { font-size:.75rem; opacity:.8; }
+  .sort-chip .sort-rank {
+    font-size:.68rem; font-weight:700;
+    background:rgba(255,255,255,.25); border-radius:3px;
+    padding:.05rem .3rem; line-height:1.4;
+    min-width:14px; text-align:center;
+  }
+  .sort-chip:not(.active) .sort-rank { background:var(--gray100); color:var(--gray500); }
+  .sort-reset { font-size:.78rem; color:var(--gray400); cursor:pointer; background:none; border:none; font-family:inherit; padding:0; text-decoration:underline; }
+  .sort-reset:hover { color:var(--court); }
+
   /* ── Dropdown filters ── */
   .filter-selects { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1.25rem; }
   .filter-select-wrap { display:flex; align-items:center; gap:.45rem; }
@@ -200,6 +228,61 @@
     .hero { padding:1.25rem; } .hero-stats { gap:1.25rem; } .stat-num { font-size:1.5rem; }
     main { padding:1rem 1rem 3rem; }
   }
+
+  /* ── Notification panel ── */
+  .panel-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:200; display:none; align-items:center; justify-content:center; padding:1rem; }
+  .panel-overlay.open { display:flex; }
+  .panel {
+    background:var(--white); border-radius:14px; width:100%; max-width:640px;
+    max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.3);
+    display:flex; flex-direction:column;
+  }
+  .panel-header { padding:1.25rem 1.5rem; border-bottom:1px solid var(--gray100); display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:var(--white); z-index:1; }
+  .panel-title { font-family:'Space Grotesk',sans-serif; font-size:1.1rem; font-weight:700; }
+  .panel-close { background:none; border:none; font-size:1.4rem; cursor:pointer; color:var(--gray500); line-height:1; padding:.2rem .4rem; border-radius:4px; }
+  .panel-close:hover { background:var(--gray100); }
+  .panel-body { padding:1.5rem; flex:1; display:flex; flex-direction:column; gap:1.5rem; }
+  .panel-section { display:flex; flex-direction:column; gap:.75rem; }
+  .panel-section-title { font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--gray500); }
+  .field-row { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }
+  .field-row.single { grid-template-columns:1fr; }
+  .field-group { display:flex; flex-direction:column; gap:.3rem; }
+  .field-group label { font-size:.8rem; font-weight:500; color:var(--gray700); }
+  .field-input {
+    padding:.4rem .65rem; border:1.5px solid var(--gray300); border-radius:7px;
+    font-family:inherit; font-size:.85rem; color:var(--gray900);
+    transition:border-color .15s; width:100%;
+  }
+  .field-input:focus { outline:none; border-color:var(--court); }
+  .field-input::placeholder { color:var(--gray300); }
+  .panel-divider { border:none; border-top:1px solid var(--gray100); }
+  /* Rules list */
+  .rules-list { display:flex; flex-direction:column; gap:.6rem; }
+  .rule-card { background:var(--gray50); border:1.5px solid var(--gray100); border-radius:9px; padding:.85rem 1rem; }
+  .rule-card-header { display:flex; align-items:center; gap:.6rem; margin-bottom:.5rem; }
+  .rule-toggle { position:relative; width:36px; height:20px; flex-shrink:0; }
+  .rule-toggle input { opacity:0; width:0; height:0; }
+  .rule-toggle-slider { position:absolute; inset:0; background:var(--gray300); border-radius:20px; cursor:pointer; transition:.2s; }
+  .rule-toggle input:checked + .rule-toggle-slider { background:var(--court); }
+  .rule-toggle-slider::before { content:''; position:absolute; height:14px; width:14px; left:3px; bottom:3px; background:white; border-radius:50%; transition:.2s; }
+  .rule-toggle input:checked + .rule-toggle-slider::before { transform:translateX(16px); }
+  .rule-label { font-size:.88rem; font-weight:600; flex:1; }
+  .rule-delete { background:none; border:none; color:var(--gray300); cursor:pointer; font-size:1rem; padding:.1rem .3rem; border-radius:4px; }
+  .rule-delete:hover { color:var(--full); background:#FEE2E2; }
+  .rule-filters { display:flex; flex-wrap:wrap; gap:.3rem; }
+  .rule-filter-tag { font-size:.72rem; padding:.15rem .5rem; background:var(--white); border:1px solid var(--gray300); border-radius:4px; color:var(--gray700); }
+  .rule-filter-tag.active { background:#DCFCE7; border-color:#86EFAC; color:#15803D; }
+  /* Add rule form */
+  .add-rule-form { background:var(--gray50); border:1.5px dashed var(--gray300); border-radius:9px; padding:1rem; display:none; flex-direction:column; gap:.75rem; }
+  .add-rule-form.open { display:flex; }
+  .filter-hint { font-size:.75rem; color:var(--gray500); margin-top:.1rem; }
+  .panel-actions { display:flex; gap:.5rem; flex-wrap:wrap; }
+  .btn-ghost { background:none; border:1.5px solid var(--gray300); color:var(--gray700); }
+  .btn-ghost:hover { border-color:var(--gray500); }
+  .btn-danger { background:#FEE2E2; border:none; color:var(--full); }
+  .btn-danger:hover { background:#FECACA; }
+  .save-status { font-size:.8rem; color:var(--open); display:none; }
+
 </style>
 </head>
 <body>
@@ -216,6 +299,7 @@
         <span id="status-text">Connecting…</span>
       </div>
       <button class="btn btn-outline btn-sm" onclick="forceRefresh()" id="refresh-btn">↻ Refresh</button>
+      <button class="btn btn-outline btn-sm" onclick="openNotifPanel()" id="notif-settings-btn" title="Email notification settings">🔔 Alerts</button>
       <a class="btn btn-primary btn-sm" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank" rel="noopener">Register ↗</a>
     </div>
   </div>
@@ -311,6 +395,20 @@
     <button class="filter-clear" onclick="clearFilters()" id="clear-btn" style="display:none">✕ Clear filters</button>
   </div>
 
+  <!-- Sort bar -->
+  <div class="sort-bar" id="sort-bar">
+    <span class="sort-label">Sort by:</span>
+    <div class="sort-chips" id="sort-chips">
+      <button class="sort-chip" data-key="date"       onclick="toggleSort('date')"       title="Click to sort, click again to reverse">📅 Date</button>
+      <button class="sort-chip" data-key="time"       onclick="toggleSort('time')"       title="Click to sort, click again to reverse">🕐 Time</button>
+      <button class="sort-chip" data-key="venue"      onclick="toggleSort('venue')"      title="Click to sort, click again to reverse">📍 Venue</button>
+      <button class="sort-chip" data-key="difficulty" onclick="toggleSort('difficulty')" title="Click to sort, click again to reverse">⚡ Difficulty</button>
+      <button class="sort-chip" data-key="court"      onclick="toggleSort('court')"      title="Click to sort, click again to reverse">🏟 Court</button>
+      <button class="sort-chip" data-key="available"  onclick="toggleSort('available')"  title="Click to sort, click again to reverse">✅ Availability</button>
+    </div>
+    <button class="sort-reset" id="sort-reset-btn" onclick="clearSort()" style="display:none">✕ Clear sort</button>
+  </div>
+
   <!-- Meta bar -->
   <div class="meta-bar">
     <span class="last-updated" id="last-updated">Not yet fetched</span>
@@ -340,6 +438,7 @@ let activeFilter   = 'all';
 let activeDifficulty = '';
 let activeCourt    = '';
 let activeTime     = '';
+
 let notifGranted   = false;
 let sse            = null;
 
@@ -399,6 +498,70 @@ function clearFilters() {
 function updateClearBtn() {
   document.getElementById('clear-btn').style.display =
     (activeDifficulty || activeCourt || activeTime) ? 'inline' : 'none';
+}
+
+// ── Sorting ───────────────────────────────────────────────────────────────────
+// sortCriteria: [{key, dir}] — order = priority (first is primary sort)
+let sortCriteria = [];
+
+const SORT_KEYS = {
+  date      : g => { const m = (g.date||'').match(/(\d{1,2})\/(\d{1,2})/); return m ? parseInt(m[1])*100+parseInt(m[2]) : 9999; },
+  time      : g => { const m = (g.time||'').match(/(\d+):(\d+)\s*(am|pm)/i); if(!m) return 9999; let h=parseInt(m[1]),min=parseInt(m[2]); if(m[3].toLowerCase()==='pm'&&h!==12)h+=12; if(m[3].toLowerCase()==='am'&&h===12)h=0; return h*60+min; },
+  venue     : g => (g.venueLabel||'').toLowerCase(),
+  difficulty: g => { const o=['Beginner','Beginner/Intermediate','Intermediate','Intermediate/Advanced','Advanced']; const i=o.findIndex(x=>(g.difficulty||'').toLowerCase().includes(x.toLowerCase())); return i===-1?99:i; },
+  court     : g => { const c=g.court||''; if(!c||c==='N/A') return 999; const m=c.match(/(\d+)/); return m?parseInt(m[1]):c.toLowerCase()==='small ct'?500:998; },
+  available : g => g.available ? 0 : 1,
+};
+
+function applySort(arr) {
+  if (!sortCriteria.length) return arr;
+  return arr.slice().sort((a, b) => {
+    for (const { key, dir } of sortCriteria) {
+      const fn = SORT_KEYS[key]; if (!fn) continue;
+      const va = fn(a), vb = fn(b);
+      if (va === vb) continue;
+      const cmp = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
+      return dir === 'asc' ? cmp : -cmp;
+    }
+    return 0;
+  });
+}
+
+function toggleSort(key) {
+  const existing = sortCriteria.find(c => c.key === key);
+  if (!existing) {
+    sortCriteria.push({ key, dir: 'asc' });
+  } else if (existing.dir === 'asc') {
+    existing.dir = 'desc';
+  } else {
+    sortCriteria = sortCriteria.filter(c => c.key !== key);
+  }
+  updateSortChips();
+  renderGames();
+}
+
+function clearSort() {
+  sortCriteria = [];
+  updateSortChips();
+  renderGames();
+}
+
+function updateSortChips() {
+  const labels = { date:'📅 Date', time:'🕐 Time', venue:'📍 Venue', difficulty:'⚡ Difficulty', court:'🏟 Court', available:'✅ Availability' };
+  document.querySelectorAll('.sort-chip').forEach(el => {
+    const key = el.dataset.key;
+    const crit = sortCriteria.find(c => c.key === key);
+    if (crit) {
+      const rank = sortCriteria.indexOf(crit) + 1;
+      const rankBadge = sortCriteria.length > 1 ? `<span class="sort-rank">${rank}</span>` : '';
+      el.classList.add('active');
+      el.innerHTML = `${labels[key]} <span class="sort-dir">${crit.dir === 'asc' ? '↑' : '↓'}</span>${rankBadge}`;
+    } else {
+      el.classList.remove('active');
+      el.innerHTML = labels[key] || key;
+    }
+  });
+  document.getElementById('sort-reset-btn').style.display = sortCriteria.length ? 'inline' : 'none';
 }
 
 // Populate difficulty, court, and time dropdowns based on currently filtered games.
@@ -508,6 +671,9 @@ function renderGames() {
   if (activeDifficulty) visible = visible.filter(g => g.difficulty === activeDifficulty);
   if (activeCourt)      visible = visible.filter(g => g.court === activeCourt);
   if (activeTime)       visible = visible.filter(g => normalizeTime(g.time) === activeTime);
+
+  // Apply multi-sort
+  visible = applySort(visible);
 
   // Stats (always whole dataset)
   document.getElementById('stat-total').textContent = allGames.length;
@@ -684,5 +850,102 @@ checkNotifPermission();
 fetchGames();
 connectSSE();
 </script>
+
+<!-- ── Notification Settings Panel ── -->
+<div class="panel-overlay" id="notif-overlay" onclick="closeNotifPanel(event)">
+  <div class="panel" onclick="event.stopPropagation()">
+    <div class="panel-header">
+      <div class="panel-title">🔔 Email Alerts</div>
+      <button class="panel-close" onclick="closeNotifPanel()">×</button>
+    </div>
+    <div class="panel-body">
+
+      <!-- Email settings -->
+      <div class="panel-section">
+        <div class="panel-section-title">Delivery Settings</div>
+        <div class="field-row">
+          <div class="field-group">
+            <label>Send alerts to</label>
+            <input class="field-input" id="cfg-email" type="email" placeholder="you@example.com">
+          </div>
+          <div class="field-group">
+            <label>Gmail sender address</label>
+            <input class="field-input" id="cfg-gmail-user" type="email" placeholder="sender@gmail.com">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label>Gmail App Password <span class="filter-hint">(not your regular password — <a href="https://myaccount.google.com/apppasswords" target="_blank">get one here</a>)</span></label>
+            <input class="field-input" id="cfg-gmail-pass" type="password" placeholder="xxxx xxxx xxxx xxxx">
+          </div>
+          <div class="field-group">
+            <label>Resend API key <span class="filter-hint">(alternative to Gmail — <a href="https://resend.com" target="_blank">resend.com</a>)</span></label>
+            <input class="field-input" id="cfg-resend-key" type="password" placeholder="re_...">
+          </div>
+        </div>
+        <div class="panel-actions">
+          <button class="btn btn-primary btn-sm" onclick="saveEmailSettings()">Save settings</button>
+          <button class="btn btn-outline btn-sm" onclick="sendTestEmail()" id="test-btn">Send test email</button>
+          <span class="save-status" id="save-status">✓ Saved</span>
+        </div>
+      </div>
+
+      <hr class="panel-divider">
+
+      <!-- Alert rules -->
+      <div class="panel-section">
+        <div class="panel-section-title">Alert Rules</div>
+        <p style="font-size:.83rem;color:var(--gray500)">Each rule sends an email when a newly available session matches ALL the filters you set. Leave a filter blank to match anything.</p>
+        <div class="rules-list" id="rules-list">
+          <div style="font-size:.85rem;color:var(--gray500);text-align:center;padding:1rem">No rules yet — add one below</div>
+        </div>
+
+        <!-- Add rule form -->
+        <div class="add-rule-form" id="add-rule-form">
+          <div class="field-row single">
+            <div class="field-group">
+              <label>Rule name</label>
+              <input class="field-input" id="new-rule-label" placeholder="e.g. Beacon Advanced Friday nights">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label>Gym <span class="filter-hint">partial match</span></label>
+              <input class="field-input" id="new-f-gym" placeholder="e.g. Beacon, LaGuardia">
+            </div>
+            <div class="field-group">
+              <label>Date <span class="filter-hint">partial match</span></label>
+              <input class="field-input" id="new-f-date" placeholder="e.g. Fri, 06/27">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label>Time <span class="filter-hint">partial match</span></label>
+              <input class="field-input" id="new-f-time" placeholder="e.g. 7:00 pm">
+            </div>
+            <div class="field-group">
+              <label>Difficulty <span class="filter-hint">exact match</span></label>
+              <input class="field-input" id="new-f-difficulty" placeholder="e.g. Intermediate, Advanced">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label>Court <span class="filter-hint">exact match</span></label>
+              <input class="field-input" id="new-f-court" placeholder="e.g. Court 1, Small Ct, N/A">
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-primary btn-sm" onclick="saveNewRule()">Add rule</button>
+            <button class="btn btn-ghost btn-sm" onclick="cancelNewRule()">Cancel</button>
+          </div>
+        </div>
+
+        <button class="btn btn-outline btn-sm" id="add-rule-btn" onclick="openAddRule()" style="align-self:flex-start">+ Add alert rule</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
