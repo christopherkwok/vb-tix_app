@@ -127,16 +127,70 @@ function parseTable(html, venue) {
                      (!isNaN(spotsNum) && spotsNum === 0);
     const available = !isFull && spotsRaw.trim() !== '';
 
+    // Parse difficulty and court out of the level field.
+    // Examples from the site:
+    //   "Intermediate - Court 1"      → difficulty="Intermediate",          court="Court 1"
+    //   "Intermediate - Small Ct"     → difficulty="Intermediate",          court="Small Ct"
+    //   "Advanced"                    → difficulty="Advanced",               court="N/A"
+    //   "Beginner/Intermediate"       → difficulty="Beginner/Intermediate",  court="N/A"
+    //   "Beg./Int. - Small Ct"        → difficulty="Beginner/Intermediate",  court="Small Ct"
+    //   "Beg. - Court 1"              → difficulty="Beginner",               court="Court 1"
+    //   "Int. - Court 2"              → difficulty="Intermediate",           court="Court 2"
+    //   "Adv. - Small Ct"             → difficulty="Advanced",               court="Small Ct"
+
+    // Step 1: expand abbreviated level names before any splitting.
+    // Combined patterns (Beg./Int.) MUST come before individual ones (Beg.)
+    // to avoid partial substitution producing "Beginner/Int." etc.
+    function expandLevel(s) {
+      return s
+        // Combined first
+        .replace(/\bBeg\.?\/Int\.?\b/gi,  'Beginner/Intermediate')
+        .replace(/\bInt\.?\/Adv\.?\b/gi,  'Intermediate/Advanced')
+        .replace(/\bAdv\.?\/Int\.?\b/gi,  'Advanced/Intermediate')
+        // Individual after
+        .replace(/\bAdv\.?\b/gi,            'Advanced')
+        .replace(/\bInt\.?\b/gi,            'Intermediate')
+        .replace(/\bBeg\.?\b/gi,            'Beginner');
+    }
+    const expandedLevel = expandLevel(level);
+
+    let difficulty = expandedLevel;
+    let court      = 'N/A';
+    const dashIdx = expandedLevel.indexOf(' - ');
+    if (dashIdx !== -1) {
+      difficulty = expandedLevel.slice(0, dashIdx).trim();
+      const courtRaw = expandedLevel.slice(dashIdx + 3).trim();
+      if (/small\s*ct/i.test(courtRaw)) {
+        court = 'Small Ct';
+      } else {
+        court = courtRaw || 'N/A';
+      }
+    } else {
+      const courtMatch = expandedLevel.match(/\b(Court\s*\d+|Small\s*Ct\.?)\b/i);
+      if (courtMatch) {
+        court = /small/i.test(courtMatch[1]) ? 'Small Ct' : courtMatch[1];
+        difficulty = expandedLevel.replace(courtMatch[1], '').replace(/[-–,]/g, '').trim() || expandedLevel;
+      }
+    }
+
+    // Strip leading/trailing punctuation but preserve "/" between words (e.g. Beginner/Intermediate)
+    difficulty = difficulty.replace(/^[^a-zA-Z]+/, '').replace(/[^a-zA-Z)]+$/, '').trim();
+
+    // Normalise capitalisation
+    difficulty = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+
     const id = `${venue.id}::${date}::${level}`.replace(/\s+/g, '-').toLowerCase();
 
     games.push({
       id,
       venueId   : venue.id,
       venueLabel: venue.label,
-      date, gym, level, time, fee,
+      date, gym, level, difficulty, court, time, fee,
       spots    : spotsRaw,
       available,
       link     : PAGE_URL,
+      filterId : venue.filterId,
+      buttonId : venue.buttonId,
     });
     rowIdx++;
   }
@@ -249,6 +303,55 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/html' });
       return fs.createReadStream(p).pipe(res);
     }
+  }
+
+  // Relay page: opens nyurban and auto-clicks the right venue tab
+  const goMatch = pathname.match(/^\/go\/(\d+)$/);
+  if (goMatch) {
+    const buttonId = parseInt(goMatch[1], 10);
+    const venue    = VENUES.find(v => v.buttonId === buttonId) || VENUES[0];
+    const relay    = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Opening ${venue.label}…</title>
+<style>
+  body { font-family: system-ui, sans-serif; display:flex; align-items:center; justify-content:center;
+         min-height:100vh; margin:0; background:#1A3A5C; color:#fff; flex-direction:column; gap:1rem; }
+  p { opacity:.7; font-size:.9rem; }
+  a { color:#C8A84B; }
+</style>
+</head>
+<body>
+<div style="font-size:2rem">🏐</div>
+<div style="font-size:1.1rem;font-weight:600">Opening ${venue.label}…</div>
+<p>If the page doesn't open automatically, <a href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank">click here</a>.</p>
+<script>
+  // Open the main nyurban page, then trigger the correct tab via postMessage / opener
+  var w = window.open('https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1', '_blank');
+  // After the page loads, call SwitchMenu for the correct tab
+  var buttonId = ${buttonId};
+  var filterId = ${venue.filterId};
+  var attempts = 0;
+  var timer = setInterval(function() {
+    attempts++;
+    try {
+      if (w && w.SwitchMenu) {
+        w.SwitchMenu(buttonId, '1', filterId, 'https://www.nyurban.com/wp-admin/admin-ajax.php', 'active');
+        clearInterval(timer);
+      }
+    } catch(e) {}
+    if (attempts > 40) {
+      clearInterval(timer);
+      // Cross-origin blocks us — redirect instead so user at least gets the page
+      window.location.href = 'https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1';
+    }
+  }, 250);
+<\/script>
+</body>
+</html>`;
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    return res.end(relay);
   }
 
   res.writeHead(404); res.end('Not found');

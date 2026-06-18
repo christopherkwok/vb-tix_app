@@ -105,12 +105,37 @@
   .tab-dot.empty    { background:var(--gray300); }
 
   /* ── Filter bar ── */
-  .filter-bar { display:flex; align-items:center; gap:.75rem; margin-bottom:1.25rem; flex-wrap:wrap; }
-  .filter-label { font-size:.85rem; font-weight:500; color:var(--gray500); }
+  .filter-bar { display:flex; align-items:center; gap:.75rem; margin-bottom:.75rem; flex-wrap:wrap; }
+  .filter-label { font-size:.85rem; font-weight:500; color:var(--gray500); white-space:nowrap; }
   .filter-group { display:flex; gap:.4rem; flex-wrap:wrap; }
   .filter-chip { padding:.3rem .85rem; border:1.5px solid var(--gray300); border-radius:999px; background:var(--white); font-size:.82rem; font-weight:500; cursor:pointer; transition:all .15s; color:var(--gray700); }
   .filter-chip.active { background:var(--court); border-color:var(--court); color:var(--white); }
   .filter-chip:hover:not(.active) { border-color:var(--court); color:var(--court); }
+
+  /* ── Dropdown filters ── */
+  .filter-selects { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+  .filter-select-wrap { display:flex; align-items:center; gap:.45rem; }
+  .filter-select-wrap label { font-size:.82rem; font-weight:500; color:var(--gray500); white-space:nowrap; }
+  .filter-select {
+    padding:.35rem .75rem .35rem .6rem;
+    border:1.5px solid var(--gray300);
+    border-radius:7px;
+    background:var(--white);
+    font-family:inherit; font-size:.82rem; font-weight:500;
+    color:var(--gray700);
+    cursor:pointer;
+    appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right .55rem center;
+    padding-right:1.75rem;
+    transition:border-color .15s;
+    min-width:140px;
+  }
+  .filter-select:focus { outline:none; border-color:var(--court); }
+  .filter-select:hover { border-color:var(--court); }
+  .filter-clear { font-size:.78rem; color:var(--gray500); cursor:pointer; text-decoration:underline; white-space:nowrap; background:none; border:none; font-family:inherit; padding:0; }
+  .filter-clear:hover { color:var(--court); }
 
   /* ── Meta bar ── */
   .meta-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; flex-wrap:wrap; gap:.5rem; }
@@ -253,12 +278,35 @@
 
   <!-- Availability filter -->
   <div class="filter-bar">
-    <span class="filter-label">Show:</span>
+    <span class="filter-label">Availability:</span>
     <div class="filter-group">
       <button class="filter-chip active" data-filter="all"  onclick="setFilter('all')">All</button>
       <button class="filter-chip" data-filter="open"        onclick="setFilter('open')">Available only</button>
       <button class="filter-chip" data-filter="full"        onclick="setFilter('full')">Sold out</button>
     </div>
+  </div>
+
+  <!-- Difficulty + Court dropdowns -->
+  <div class="filter-selects">
+    <div class="filter-select-wrap">
+      <label for="diff-select">⚡ Difficulty:</label>
+      <select id="diff-select" class="filter-select" onchange="setDifficulty(this.value)">
+        <option value="">All levels</option>
+      </select>
+    </div>
+    <div class="filter-select-wrap">
+      <label for="court-select">🏟 Court:</label>
+      <select id="court-select" class="filter-select" onchange="setCourt(this.value)">
+        <option value="">All courts</option>
+      </select>
+    </div>
+    <div class="filter-select-wrap">
+      <label for="time-select">🕐 Time:</label>
+      <select id="time-select" class="filter-select" onchange="setTime(this.value)">
+        <option value="">All times</option>
+      </select>
+    </div>
+    <button class="filter-clear" onclick="clearFilters()" id="clear-btn" style="display:none">✕ Clear filters</button>
   </div>
 
   <!-- Meta bar -->
@@ -284,11 +332,14 @@
 
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
-let allGames    = [];
-let activeVenue = 'all';
-let activeFilter= 'all';
-let notifGranted= false;
-let sse         = null;
+let allGames       = [];
+let activeVenue    = 'all';
+let activeFilter   = 'all';
+let activeDifficulty = '';
+let activeCourt    = '';
+let activeTime     = '';
+let notifGranted   = false;
+let sse            = null;
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 function checkNotifPermission() {
@@ -317,6 +368,97 @@ function setFilter(f) {
   activeFilter = f;
   document.querySelectorAll('.filter-chip').forEach(el => el.classList.toggle('active', el.dataset.filter === f));
   renderGames();
+}
+function setDifficulty(v) {
+  activeDifficulty = v;
+  updateClearBtn();
+  renderGames();
+}
+function setCourt(v) {
+  activeCourt = v;
+  updateClearBtn();
+  renderGames();
+}
+function setTime(v) {
+  activeTime = v;
+  updateClearBtn();
+  renderGames();
+}
+function clearFilters() {
+  activeDifficulty = '';
+  activeCourt = '';
+  activeTime = '';
+  document.getElementById('diff-select').value = '';
+  document.getElementById('court-select').value = '';
+  document.getElementById('time-select').value = '';
+  updateClearBtn();
+  renderGames();
+}
+function updateClearBtn() {
+  document.getElementById('clear-btn').style.display =
+    (activeDifficulty || activeCourt || activeTime) ? 'inline' : 'none';
+}
+
+// Populate difficulty, court, and time dropdowns based on currently filtered games.
+// Each dropdown only shows values present after applying all OTHER active filters.
+function normalizeTime(t) {
+  // Strip seconds, normalize spacing: "7:00 pm - 10:30 pm" → "7:00 pm - 10:30 pm"
+  return (t || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+function sortTimes(times) {
+  return times.slice().sort((a, b) => {
+    // Parse start hour for sorting: "7:00 pm" → 19
+    function toMin(str) {
+      const m = str.match(/(\d+):(\d+)\s*(am|pm)/i);
+      if (!m) return 0;
+      let h = parseInt(m[1]), min = parseInt(m[2]);
+      if (m[3].toLowerCase() === 'pm' && h !== 12) h += 12;
+      if (m[3].toLowerCase() === 'am' && h === 12) h = 0;
+      return h * 60 + min;
+    }
+    return toMin(a) - toMin(b);
+  });
+}
+function updateDropdowns() {
+  // Base: venue + availability applied, but not difficulty/court/time
+  let base = activeVenue === 'all' ? allGames : allGames.filter(g => g.venueId === activeVenue);
+  if (activeFilter === 'open') base = base.filter(g => g.available);
+  if (activeFilter === 'full') base = base.filter(g => !g.available);
+
+  // Each dropdown: filter base by all OTHER active dropdowns
+  const diffPool  = base
+    .filter(g => !activeCourt || g.court === activeCourt)
+    .filter(g => !activeTime  || normalizeTime(g.time) === activeTime);
+  const courtPool = base
+    .filter(g => !activeDifficulty || g.difficulty === activeDifficulty)
+    .filter(g => !activeTime       || normalizeTime(g.time) === activeTime);
+  const timePool  = base
+    .filter(g => !activeDifficulty || g.difficulty === activeDifficulty)
+    .filter(g => !activeCourt      || g.court === activeCourt);
+
+  const difficulties = [...new Set(diffPool.map(g => g.difficulty).filter(Boolean))].sort();
+  const courts = [...new Set(courtPool.map(g => g.court).filter(Boolean))].sort((a, b) => {
+    if (a === 'N/A') return 1;
+    if (b === 'N/A') return -1;
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+  const times = sortTimes([...new Set(timePool.map(g => normalizeTime(g.time)).filter(Boolean))]);
+
+  // Auto-reset a selection if it no longer exists in the filtered options
+  if (activeDifficulty && !difficulties.includes(activeDifficulty)) { activeDifficulty = ''; updateClearBtn(); }
+  if (activeCourt      && !courts.includes(activeCourt))            { activeCourt = '';      updateClearBtn(); }
+  if (activeTime       && !times.includes(activeTime))              { activeTime = '';        updateClearBtn(); }
+
+  const diffSel  = document.getElementById('diff-select');
+  const courtSel = document.getElementById('court-select');
+  const timeSel  = document.getElementById('time-select');
+
+  diffSel.innerHTML  = '<option value="">All levels</option>' +
+    difficulties.map(d => `<option value="${esc(d)}" ${d === activeDifficulty ? 'selected' : ''}>${esc(d)}</option>`).join('');
+  courtSel.innerHTML = '<option value="">All courts</option>' +
+    courts.map(c => `<option value="${esc(c)}" ${c === activeCourt ? 'selected' : ''}>${esc(c)}</option>`).join('');
+  timeSel.innerHTML  = '<option value="">All times</option>' +
+    times.map(t => `<option value="${esc(t)}" ${t === activeTime ? 'selected' : ''}>${esc(t)}</option>`).join('');
 }
 
 // ── Tab counts + dots ──────────────────────────────────────────────────────────
@@ -352,11 +494,18 @@ function availClass(g) {
 function renderGames() {
   const container = document.getElementById('games-container');
 
+  // Keep dropdowns in sync with all current filters
+  updateDropdowns();
+
   // Filter by venue
   let visible = activeVenue === 'all' ? allGames : allGames.filter(g => g.venueId === activeVenue);
   // Filter by availability
   if (activeFilter === 'open') visible = visible.filter(g => g.available);
   if (activeFilter === 'full') visible = visible.filter(g => !g.available);
+  // Filter by difficulty / court
+  if (activeDifficulty) visible = visible.filter(g => g.difficulty === activeDifficulty);
+  if (activeCourt)      visible = visible.filter(g => g.court === activeCourt);
+  if (activeTime)       visible = visible.filter(g => normalizeTime(g.time) === activeTime);
 
   // Stats (always whole dataset)
   document.getElementById('stat-total').textContent = allGames.length;
@@ -408,13 +557,14 @@ function renderGames() {
       </span>
     </div>
     <div class="card-meta">
-      ${game.gym   ? `<span class="meta-tag">📍 ${esc(game.gym)}</span>` : ''}
-      ${game.level ? `<span class="meta-tag">⚡ ${esc(game.level)}</span>` : ''}
+      ${game.gym        ? `<span class="meta-tag">📍 ${esc(game.gym)}</span>` : ''}
+      ${game.difficulty ? `<span class="meta-tag">⚡ ${esc(game.difficulty)}</span>` : ''}
+      ${game.court      ? `<span class="meta-tag">🏟 ${esc(game.court)}</span>` : ''}
     </div>
   </div>
   <div class="card-footer">
     <span class="card-fee">${game.fee ? '$' + esc(game.fee) : ''}</span>
-    <a class="btn btn-primary btn-sm" href="${esc(game.link)}" target="_blank" rel="noopener">
+    <a class="btn btn-primary btn-sm" href="/go/${game.buttonId || 1}" target="_blank" rel="noopener">
       ${game.available ? 'Register ↗' : 'View ↗'}
     </a>
   </div>
@@ -468,6 +618,7 @@ function fetchGames() {
     .then(data => {
       allGames = data.games || [];
       updateTabs(allGames);
+      updateDropdowns();
       renderGames();
       renderErrors(data.errors);
       updateLastUpdated(data.lastScrape);
@@ -495,6 +646,7 @@ function connectSSE() {
     if (data.type === 'connected' || data.type === 'update') {
       allGames = data.games || [];
       updateTabs(allGames);
+      updateDropdowns();
       renderGames();
       renderErrors(data.errors);
       updateLastUpdated(data.timestamp || data.lastScrape);
