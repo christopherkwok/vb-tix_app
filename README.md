@@ -131,7 +131,7 @@ Opens a modal for configuring server-side email notifications:
 - **Delivery settings** — organised as two options with required-field `*` markers:
   - *Option A — Gmail*: recipient address `*`, Gmail sender address `*`, Gmail App Password `*`
   - *Option B — Resend*: recipient address `*`, Resend API key `*`
-- **Alert rules** — each rule triggers an email when a newly available session matches all its filters. All 5 filter fields are always shown — green = set, grey italic "Any" = unset. Difficulty and Court are exact-match; Gym, Date, and Time are partial-match.
+- **Alert rules** — each rule triggers an email when a newly available session matches all its filters. Filters use the same multiselect dropdowns as the main page, populated from live game data — select one or more values per field, or leave a field unselected to match anything. All 5 fields are always shown in the rule card — green = at least one value set, grey italic "Any" = unset.
 - **Send test email** — verifies credentials without waiting for a real scrape
 
 Settings are stored in `notifications.json` and survive server restarts.
@@ -164,20 +164,22 @@ This file is created automatically when you first save settings through the UI. 
       "label": "Beacon Advanced Friday nights",
       "enabled": true,
       "filters": {
-        "gym":        "Beacon",
-        "date":       "",
-        "time":       "7:00 pm",
-        "court":      "",
-        "difficulty": "Advanced"
+        "gym":        ["Beacon"],
+        "date":       [],
+        "time":       ["7:00 pm"],
+        "court":      [],
+        "difficulty": ["Advanced"]
       }
     }
   ]
 }
 ```
 
-Filter matching rules:
-- `gym`, `date`, `time` — case-insensitive **partial** match (blank = any)
-- `difficulty`, `court` — case-insensitive **exact** match (blank = any)
+Filter values are arrays — the rule matches if the game's value equals **any** entry in the array (OR within a field). A field with an empty array matches any value. All fields must match for a rule to fire (AND across fields).
+
+Matching rules per field:
+- `gym`, `date`, `time` — case-insensitive **partial** match
+- `difficulty`, `court` — case-insensitive **exact** match
 
 **When alerts fire:** once per opening event — when a session transitions from unavailable (or unseen) to available. If the same session later sells out and reopens, it fires again. Alerts do not repeat while a session remains continuously available across scrapes.
 

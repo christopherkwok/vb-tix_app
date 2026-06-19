@@ -188,6 +188,15 @@
     padding:.3rem 0;
   }
   .dd-panel.open { display:flex; }
+  /* Inline (non-floating) dropdown list used inside the alert-rule form */
+  .rule-dd-list {
+    display:none; flex-direction:column; margin-top:3px;
+    border:1.5px solid var(--gray200,#E5E7EB); border-radius:8px;
+    background:var(--white); max-height:160px; overflow-y:auto; padding:.3rem 0;
+  }
+  .rule-dd-list.open { display:flex; }
+  .field-group .filter-select-wrap { display:block; }
+  .field-group .dd-trigger { width:100%; box-sizing:border-box; }
   .dd-item {
     display:flex; align-items:center; gap:.55rem;
     padding:.42rem .85rem; cursor:pointer;
@@ -481,6 +490,13 @@ let activeDifficulties = new Set();   // multiselect
 let activeCourts       = new Set();   // multiselect
 let activeTimes        = new Set();   // multiselect
 
+// Rule-form multiselect state
+let newRuleGyms   = new Set();
+let newRuleDates  = new Set();
+let newRuleTimes  = new Set();
+let newRuleDiffs  = new Set();
+let newRuleCourts = new Set();
+
 let notifGranted   = false;
 let sse            = null;
 
@@ -644,7 +660,87 @@ function closeAllDropdowns() {
 // Close on outside click
 document.addEventListener('click', e => {
   if (openDropdown && !e.target.closest('.filter-select-wrap')) closeAllDropdowns();
+  if (ruleOpenDD && !e.target.closest('.filter-select-wrap')) {
+    const cfg = RULE_DD[ruleOpenDD];
+    document.getElementById(cfg.listId)?.classList.remove('open');
+    document.getElementById(cfg.trigId)?.classList.remove('open');
+    ruleOpenDD = null;
+  }
 });
+
+// ── Rule-form inline dropdown multiselect ─────────────────────────────────
+const RULE_DD = {
+  gym  : { set: () => newRuleGyms,   listId: 'rule-list-gym',   trigId: 'rule-trig-gym',   lblId: 'rule-lbl-gym',   ph: 'Any gym'   },
+  date : { set: () => newRuleDates,  listId: 'rule-list-date',  trigId: 'rule-trig-date',  lblId: 'rule-lbl-date',  ph: 'Any date'  },
+  time : { set: () => newRuleTimes,  listId: 'rule-list-time',  trigId: 'rule-trig-time',  lblId: 'rule-lbl-time',  ph: 'Any time'  },
+  diff : { set: () => newRuleDiffs,  listId: 'rule-list-diff',  trigId: 'rule-trig-diff',  lblId: 'rule-lbl-diff',  ph: 'Any level' },
+  court: { set: () => newRuleCourts, listId: 'rule-list-court', trigId: 'rule-trig-court', lblId: 'rule-lbl-court', ph: 'Any court' },
+};
+let ruleOpenDD = null;
+
+function toggleRuleDD(key) {
+  if (ruleOpenDD && ruleOpenDD !== key) {
+    const p = RULE_DD[ruleOpenDD];
+    document.getElementById(p.listId)?.classList.remove('open');
+    document.getElementById(p.trigId)?.classList.remove('open');
+  }
+  const cfg  = RULE_DD[key];
+  const list = document.getElementById(cfg.listId);
+  const trig = document.getElementById(cfg.trigId);
+  const wasOpen = list.classList.contains('open');
+  list.classList.toggle('open', !wasOpen);
+  trig.classList.toggle('open', !wasOpen);
+  ruleOpenDD = wasOpen ? null : key;
+}
+
+function _ruleTrigLabel(key) {
+  const cfg = RULE_DD[key];
+  const set = cfg.set();
+  const lbl  = document.getElementById(cfg.lblId);
+  const trig = document.getElementById(cfg.trigId);
+  if (!lbl) return;
+  const n = set.size;
+  lbl.textContent = n === 0 ? cfg.ph : n === 1 ? [...set][0] : `${n} selected`;
+  trig.classList.toggle('has-selection', n > 0);
+}
+
+function renderRuleDDList(key, values) {
+  const cfg = RULE_DD[key];
+  const set = cfg.set();
+  const list = document.getElementById(cfg.listId);
+  if (!list) return;
+  list.innerHTML = values.length === 0
+    ? '<div class="dd-empty">No data yet — start the server first</div>'
+    : values.map(v => `
+        <label class="dd-item">
+          <input type="checkbox" value="${esc(v)}" ${set.has(v) ? 'checked' : ''}
+            onchange="onRuleDD('${key}', this.value, this.checked)">
+          <span>${esc(v)}</span>
+        </label>`).join('');
+  _ruleTrigLabel(key);
+}
+
+function onRuleDD(key, value, checked) {
+  const set = RULE_DD[key].set();
+  if (checked) set.add(value); else set.delete(value);
+  _ruleTrigLabel(key);
+}
+
+function populateRuleDropdowns() {
+  const gyms   = [...new Set(allGames.map(g => g.gym).filter(Boolean))].sort();
+  const dates  = [...new Set(allGames.map(g => g.date).filter(Boolean))].sort();
+  const times  = sortTimes([...new Set(allGames.map(g => normalizeTime(g.time)).filter(Boolean))]);
+  const diffs  = [...new Set(allGames.map(g => g.difficulty).filter(Boolean))].sort();
+  const courts = [...new Set(allGames.map(g => g.court).filter(Boolean))].sort((a, b) => {
+    if (a === 'N/A') return 1; if (b === 'N/A') return -1;
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+  renderRuleDDList('gym',   gyms);
+  renderRuleDDList('date',  dates);
+  renderRuleDDList('time',  times);
+  renderRuleDDList('diff',  diffs);
+  renderRuleDDList('court', courts);
+}
 
 function renderDropdown(key, values) {
   const cfg     = DD_CONFIG[key];
@@ -961,6 +1057,7 @@ function closeNotifPanel(e) {
   if (e && e.target !== document.getElementById('notif-overlay')) return;
   document.getElementById('notif-overlay').classList.remove('open');
   document.body.style.overflow = '';
+  cancelNewRule();
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNotifPanel(); });
 
@@ -1021,11 +1118,12 @@ function renderRules(rules) {
   container.innerHTML = rules.map(rule => {
     const filters = rule.filters || {};
     const tags = FILTER_DEFS.map(f => {
-      const val = (filters[f.key] || '').trim();
-      const valHtml = val
-        ? esc(val)
+      const raw = filters[f.key];
+      const vals = Array.isArray(raw) ? raw.filter(Boolean) : (raw ? [raw] : []);
+      const valHtml = vals.length
+        ? esc(vals.join(', '))
         : `<span style="opacity:.5;font-style:italic">Any</span>`;
-      return `<span class="rule-filter-tag${val ? ' active' : ''}" title="${val ? f.hint : 'matches any value'}">${esc(f.label)}: ${valHtml}</span>`;
+      return `<span class="rule-filter-tag${vals.length ? ' active' : ''}" title="${vals.length ? f.hint : 'matches any value'}">${esc(f.label)}: ${valHtml}</span>`;
     });
     return `
 <div class="rule-card" id="rule-${esc(rule.id)}">
@@ -1054,6 +1152,10 @@ async function deleteRule(id) {
   loadRules();
 }
 function openAddRule() {
+  newRuleGyms.clear(); newRuleDates.clear(); newRuleTimes.clear();
+  newRuleDiffs.clear(); newRuleCourts.clear();
+  ruleOpenDD = null;
+  populateRuleDropdowns();
   document.getElementById('add-rule-form').classList.add('open');
   document.getElementById('add-rule-btn').style.display = 'none';
   document.getElementById('new-rule-label').focus();
@@ -1061,27 +1163,40 @@ function openAddRule() {
 function cancelNewRule() {
   document.getElementById('add-rule-form').classList.remove('open');
   document.getElementById('add-rule-btn').style.display = '';
-  ['new-rule-label','new-f-gym','new-f-date','new-f-time','new-f-difficulty','new-f-court'].forEach(id => {
-    document.getElementById(id).value = '';
+  document.getElementById('new-rule-label').value = '';
+  newRuleGyms.clear(); newRuleDates.clear(); newRuleTimes.clear();
+  newRuleDiffs.clear(); newRuleCourts.clear();
+  Object.values(RULE_DD).forEach(cfg => {
+    document.getElementById(cfg.listId)?.classList.remove('open');
+    document.getElementById(cfg.trigId)?.classList.remove('open');
   });
+  ruleOpenDD = null;
 }
 async function saveNewRule() {
   const label = document.getElementById('new-rule-label').value.trim();
-  if (!label) { document.getElementById('new-rule-label').focus(); return; }
+  if (!label) {
+    const el = document.getElementById('new-rule-label');
+    el.style.borderColor = 'var(--full)';
+    el.focus();
+    el.addEventListener('input', () => { el.style.borderColor = ''; }, { once: true });
+    toast('Please enter a rule name', 'error');
+    return;
+  }
   const rule = {
     label, enabled: true,
     filters: {
-      gym       : document.getElementById('new-f-gym').value.trim(),
-      date      : document.getElementById('new-f-date').value.trim(),
-      time      : document.getElementById('new-f-time').value.trim(),
-      difficulty: document.getElementById('new-f-difficulty').value.trim(),
-      court     : document.getElementById('new-f-court').value.trim(),
+      gym       : [...newRuleGyms],
+      date      : [...newRuleDates],
+      time      : [...newRuleTimes],
+      difficulty: [...newRuleDiffs],
+      court     : [...newRuleCourts],
     },
   };
   try {
-    await fetch('/api/notifications/rules', {
+    const res = await fetch('/api/notifications/rules', {
       method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(rule),
     });
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
     cancelNewRule();
     loadRules();
     toast('✓ Alert rule added', 'success');
@@ -1142,7 +1257,10 @@ connectSSE();
 
       <!-- Alert rules -->
       <div class="panel-section">
-        <div class="panel-section-title">Alert Rules</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+          <div class="panel-section-title">Alert Rules</div>
+          <button class="btn btn-ghost btn-sm" id="add-rule-btn" onclick="openAddRule()">+ Add rule</button>
+        </div>
         <p style="font-size:.83rem;color:var(--gray500)">Each rule sends an email when a newly available session matches ALL the filters you set. Leave a filter blank to match anything.</p>
         <div class="rules-list" id="rules-list">
           <div style="font-size:.85rem;color:var(--gray500);text-align:center;padding:1rem">No rules yet — add one below</div>
@@ -1156,31 +1274,56 @@ connectSSE();
               <input class="field-input" id="new-rule-label" placeholder="e.g. Beacon Advanced Friday nights">
             </div>
           </div>
-          <p style="font-size:.78rem;color:var(--gray500)">All filter fields below are optional — blank matches any value. <strong>Difficulty</strong> and <strong>Court</strong> require an exact match; <strong>Gym</strong>, <strong>Date</strong>, and <strong>Time</strong> use a partial match.</p>
+          <p style="font-size:.78rem;color:var(--gray500)">All filter fields below are optional — leave unselected to match any value.</p>
           <div class="field-row">
             <div class="field-group">
-              <label>Gym <span class="filter-hint">partial match</span></label>
-              <input class="field-input" id="new-f-gym" placeholder="e.g. Beacon, LaGuardia">
+              <label>Gym</label>
+              <div class="filter-select-wrap">
+                <button class="dd-trigger" id="rule-trig-gym" onclick="toggleRuleDD('gym')">
+                  <span id="rule-lbl-gym">Any gym</span><span class="dd-caret">▼</span>
+                </button>
+                <div class="rule-dd-list" id="rule-list-gym"></div>
+              </div>
             </div>
             <div class="field-group">
-              <label>Date <span class="filter-hint">partial match</span></label>
-              <input class="field-input" id="new-f-date" placeholder="e.g. Fri, 06/27">
+              <label>Date</label>
+              <div class="filter-select-wrap">
+                <button class="dd-trigger" id="rule-trig-date" onclick="toggleRuleDD('date')">
+                  <span id="rule-lbl-date">Any date</span><span class="dd-caret">▼</span>
+                </button>
+                <div class="rule-dd-list" id="rule-list-date"></div>
+              </div>
             </div>
           </div>
           <div class="field-row">
             <div class="field-group">
-              <label>Time <span class="filter-hint">partial match</span></label>
-              <input class="field-input" id="new-f-time" placeholder="e.g. 7:00 pm">
+              <label>Time</label>
+              <div class="filter-select-wrap">
+                <button class="dd-trigger" id="rule-trig-time" onclick="toggleRuleDD('time')">
+                  <span id="rule-lbl-time">Any time</span><span class="dd-caret">▼</span>
+                </button>
+                <div class="rule-dd-list" id="rule-list-time"></div>
+              </div>
             </div>
             <div class="field-group">
-              <label>Difficulty <span class="filter-hint">exact match</span></label>
-              <input class="field-input" id="new-f-difficulty" placeholder="e.g. Intermediate, Advanced">
+              <label>Difficulty</label>
+              <div class="filter-select-wrap">
+                <button class="dd-trigger" id="rule-trig-diff" onclick="toggleRuleDD('diff')">
+                  <span id="rule-lbl-diff">Any level</span><span class="dd-caret">▼</span>
+                </button>
+                <div class="rule-dd-list" id="rule-list-diff"></div>
+              </div>
             </div>
           </div>
           <div class="field-row">
             <div class="field-group">
-              <label>Court <span class="filter-hint">exact match</span></label>
-              <input class="field-input" id="new-f-court" placeholder="e.g. Court 1, Small Ct, N/A">
+              <label>Court</label>
+              <div class="filter-select-wrap">
+                <button class="dd-trigger" id="rule-trig-court" onclick="toggleRuleDD('court')">
+                  <span id="rule-lbl-court">Any court</span><span class="dd-caret">▼</span>
+                </button>
+                <div class="rule-dd-list" id="rule-list-court"></div>
+              </div>
             </div>
           </div>
           <div class="panel-actions">
@@ -1189,7 +1332,6 @@ connectSSE();
           </div>
         </div>
 
-        <button class="btn btn-outline btn-sm" id="add-rule-btn" onclick="openAddRule()" style="align-self:flex-start">+ Add alert rule</button>
       </div>
 
     </div>

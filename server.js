@@ -144,13 +144,22 @@ async function sendEmail(subject, body, cfg) {
 function gameMatchesRule(game, rule) {
   if (!rule.enabled) return false;
   const f = rule.filters || {};
-  const ci = (a, b) => a.toLowerCase().includes(b.toLowerCase());
 
-  if (f.gym        && !ci(game.gym        || '', f.gym))        return false;
-  if (f.date       && !ci(game.date       || '', f.date))       return false;
-  if (f.time       && !ci(game.time       || '', f.time))       return false;
-  if (f.difficulty && (game.difficulty || '').toLowerCase() !== f.difficulty.toLowerCase()) return false;
-  if (f.court      && (game.court      || '').toLowerCase() !== f.court.toLowerCase())      return false;
+  // Accepts string (legacy) or array; empty = match anything; OR semantics within a field
+  function matchesFilter(gameVal, filterVal, exact) {
+    const vals = Array.isArray(filterVal) ? filterVal.filter(Boolean) : (filterVal ? [filterVal] : []);
+    if (!vals.length) return true;
+    const gv = (gameVal || '').toLowerCase();
+    return exact
+      ? vals.some(v => gv === v.toLowerCase())
+      : vals.some(v => gv.includes(v.toLowerCase()));
+  }
+
+  if (!matchesFilter(game.gym,        f.gym,        false)) return false;
+  if (!matchesFilter(game.date,       f.date,       false)) return false;
+  if (!matchesFilter(game.time,       f.time,       false)) return false;
+  if (!matchesFilter(game.difficulty, f.difficulty, true))  return false;
+  if (!matchesFilter(game.court,      f.court,      true))  return false;
   return true;
 }
 
