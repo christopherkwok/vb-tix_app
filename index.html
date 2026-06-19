@@ -141,9 +141,7 @@
   .sort-reset:hover { color:var(--court); }
 
   /* ── Dropdown filters ── */
-  .filter-selects { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1.25rem; }
-  .filter-select-wrap { display:flex; align-items:center; gap:.45rem; }
-  .filter-select-wrap label { font-size:.82rem; font-weight:500; color:var(--gray500); white-space:nowrap; }
+
   .filter-select {
     padding:.35rem .75rem .35rem .6rem;
     border:1.5px solid var(--gray300);
@@ -163,6 +161,44 @@
   .filter-select:focus { outline:none; border-color:var(--court); }
   .filter-select:hover { border-color:var(--court); }
   .filter-clear { font-size:.78rem; color:var(--gray500); cursor:pointer; text-decoration:underline; white-space:nowrap; background:none; border:none; font-family:inherit; padding:0; }
+  .filter-clear:hover { color:var(--court); }
+  .filter-selects { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1.25rem; align-items:flex-end; }
+  .filter-select-wrap { position:relative; display:flex; flex-direction:column; gap:.3rem; }
+  .filter-select-wrap label { font-size:.78rem; font-weight:600; color:var(--gray500); text-transform:uppercase; letter-spacing:.04em; }
+  /* Dropdown trigger button */
+  .dd-trigger {
+    display:inline-flex; align-items:center; gap:.45rem;
+    padding:.38rem .75rem; min-width:130px;
+    border:1.5px solid var(--gray300); border-radius:7px;
+    background:var(--white); font-family:inherit; font-size:.83rem; font-weight:500;
+    color:var(--gray700); cursor:pointer; transition:border-color .15s;
+    white-space:nowrap; text-align:left; justify-content:space-between;
+  }
+  .dd-trigger:hover { border-color:var(--court); }
+  .dd-trigger.has-selection { border-color:var(--court); color:var(--court); background:#f0f7ee; font-weight:600; }
+  .dd-trigger .dd-caret { font-size:.65rem; opacity:.6; transition:transform .15s; flex-shrink:0; }
+  .dd-trigger.open .dd-caret { transform:rotate(180deg); }
+  /* Dropdown panel */
+  .dd-panel {
+    position:absolute; top:calc(100% + 4px); left:0; z-index:50;
+    background:var(--white); border:1.5px solid var(--gray200, #E5E7EB);
+    border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.12);
+    min-width:100%; max-height:220px; overflow-y:auto;
+    display:none; flex-direction:column;
+    padding:.3rem 0;
+  }
+  .dd-panel.open { display:flex; }
+  .dd-item {
+    display:flex; align-items:center; gap:.55rem;
+    padding:.42rem .85rem; cursor:pointer;
+    font-size:.83rem; color:var(--gray700);
+    transition:background .1s; white-space:nowrap;
+  }
+  .dd-item:hover { background:var(--gray50); }
+  .dd-item input[type=checkbox] { accent-color:var(--court); width:14px; height:14px; flex-shrink:0; cursor:pointer; }
+  .dd-item label { cursor:pointer; flex:1; }
+  .dd-empty { padding:.5rem .85rem; font-size:.8rem; color:var(--gray300); font-style:italic; }
+  .dd-divider { border:none; border-top:1px solid var(--gray100); margin:.2rem 0; }
   .filter-clear:hover { color:var(--court); }
 
   /* ── Meta bar ── */
@@ -372,27 +408,33 @@
     </div>
   </div>
 
-  <!-- Difficulty + Court dropdowns -->
+  <!-- Multiselect dropdown filters -->
   <div class="filter-selects">
     <div class="filter-select-wrap">
-      <label for="diff-select">⚡ Difficulty:</label>
-      <select id="diff-select" class="filter-select" onchange="setDifficulty(this.value)">
-        <option value="">All levels</option>
-      </select>
+      <label>⚡ Difficulty</label>
+      <button class="dd-trigger" id="dd-trigger-diff" onclick="toggleDropdown('diff')">
+        <span id="dd-label-diff">All levels</span>
+        <span class="dd-caret">▼</span>
+      </button>
+      <div class="dd-panel" id="dd-panel-diff"></div>
     </div>
     <div class="filter-select-wrap">
-      <label for="court-select">🏟 Court:</label>
-      <select id="court-select" class="filter-select" onchange="setCourt(this.value)">
-        <option value="">All courts</option>
-      </select>
+      <label>🏟 Court</label>
+      <button class="dd-trigger" id="dd-trigger-court" onclick="toggleDropdown('court')">
+        <span id="dd-label-court">All courts</span>
+        <span class="dd-caret">▼</span>
+      </button>
+      <div class="dd-panel" id="dd-panel-court"></div>
     </div>
     <div class="filter-select-wrap">
-      <label for="time-select">🕐 Time:</label>
-      <select id="time-select" class="filter-select" onchange="setTime(this.value)">
-        <option value="">All times</option>
-      </select>
+      <label>🕐 Time</label>
+      <button class="dd-trigger" id="dd-trigger-time" onclick="toggleDropdown('time')">
+        <span id="dd-label-time">All times</span>
+        <span class="dd-caret">▼</span>
+      </button>
+      <div class="dd-panel" id="dd-panel-time"></div>
     </div>
-    <button class="filter-clear" onclick="clearFilters()" id="clear-btn" style="display:none">✕ Clear filters</button>
+    <button class="filter-clear" onclick="clearFilters()" id="clear-btn" style="display:none">✕ Clear all</button>
   </div>
 
   <!-- Sort bar -->
@@ -434,10 +476,10 @@
 // ── State ────────────────────────────────────────────────────────────────────
 let allGames       = [];
 let activeVenue    = 'all';
-let activeFilter   = 'all';
-let activeDifficulty = '';
-let activeCourt    = '';
-let activeTime     = '';
+let activeFilter     = 'all';
+let activeDifficulties = new Set();   // multiselect
+let activeCourts       = new Set();   // multiselect
+let activeTimes        = new Set();   // multiselect
 
 let notifGranted   = false;
 let sse            = null;
@@ -470,34 +512,21 @@ function setFilter(f) {
   document.querySelectorAll('.filter-chip').forEach(el => el.classList.toggle('active', el.dataset.filter === f));
   renderGames();
 }
-function setDifficulty(v) {
-  activeDifficulty = v;
-  updateClearBtn();
-  renderGames();
-}
-function setCourt(v) {
-  activeCourt = v;
-  updateClearBtn();
-  renderGames();
-}
-function setTime(v) {
-  activeTime = v;
+function toggleMulti(set, value) {
+  if (set.has(value)) set.delete(value); else set.add(value);
   updateClearBtn();
   renderGames();
 }
 function clearFilters() {
-  activeDifficulty = '';
-  activeCourt = '';
-  activeTime = '';
-  document.getElementById('diff-select').value = '';
-  document.getElementById('court-select').value = '';
-  document.getElementById('time-select').value = '';
+  activeDifficulties.clear();
+  activeCourts.clear();
+  activeTimes.clear();
   updateClearBtn();
   renderGames();
 }
 function updateClearBtn() {
   document.getElementById('clear-btn').style.display =
-    (activeDifficulty || activeCourt || activeTime) ? 'inline' : 'none';
+    (activeDifficulties.size || activeCourts.size || activeTimes.size) ? 'inline' : 'none';
 }
 
 // ── Sorting ───────────────────────────────────────────────────────────────────
@@ -564,15 +593,12 @@ function updateSortChips() {
   document.getElementById('sort-reset-btn').style.display = sortCriteria.length ? 'inline' : 'none';
 }
 
-// Populate difficulty, court, and time dropdowns based on currently filtered games.
-// Each dropdown only shows values present after applying all OTHER active filters.
+// Populate multiselect chip pickers — contextual (each group filters by other groups)
 function normalizeTime(t) {
-  // Strip seconds, normalize spacing: "7:00 pm - 10:30 pm" → "7:00 pm - 10:30 pm"
   return (t || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 function sortTimes(times) {
   return times.slice().sort((a, b) => {
-    // Parse start hour for sorting: "7:00 pm" → 19
     function toMin(str) {
       const m = str.match(/(\d+):(\d+)\s*(am|pm)/i);
       if (!m) return 0;
@@ -584,46 +610,125 @@ function sortTimes(times) {
     return toMin(a) - toMin(b);
   });
 }
+// ── Dropdown multiselect ────────────────────────────────────────────────────
+const DD_CONFIG = {
+  diff  : { set: () => activeDifficulties, panelId: 'dd-panel-diff',  triggerId: 'dd-trigger-diff',  labelId: 'dd-label-diff',  placeholder: 'All levels' },
+  court : { set: () => activeCourts,       panelId: 'dd-panel-court', triggerId: 'dd-trigger-court', labelId: 'dd-label-court', placeholder: 'All courts' },
+  time  : { set: () => activeTimes,        panelId: 'dd-panel-time',  triggerId: 'dd-trigger-time',  labelId: 'dd-label-time',  placeholder: 'All times'  },
+};
+let openDropdown = null;
+
+function toggleDropdown(key) {
+  if (openDropdown && openDropdown !== key) closeAllDropdowns();
+  const cfg = DD_CONFIG[key];
+  const panel   = document.getElementById(cfg.panelId);
+  const trigger = document.getElementById(cfg.triggerId);
+  const isOpen  = panel.classList.contains('open');
+  if (isOpen) {
+    panel.classList.remove('open');
+    trigger.classList.remove('open');
+    openDropdown = null;
+  } else {
+    panel.classList.add('open');
+    trigger.classList.add('open');
+    openDropdown = key;
+  }
+}
+function closeAllDropdowns() {
+  Object.values(DD_CONFIG).forEach(cfg => {
+    document.getElementById(cfg.panelId)?.classList.remove('open');
+    document.getElementById(cfg.triggerId)?.classList.remove('open');
+  });
+  openDropdown = null;
+}
+// Close on outside click
+document.addEventListener('click', e => {
+  if (openDropdown && !e.target.closest('.filter-select-wrap')) closeAllDropdowns();
+});
+
+function renderDropdown(key, values) {
+  const cfg     = DD_CONFIG[key];
+  const activeSet = cfg.set();
+  const panel   = document.getElementById(cfg.panelId);
+  const trigger = document.getElementById(cfg.triggerId);
+  const label   = document.getElementById(cfg.labelId);
+  if (!panel) return;
+
+  if (values.length === 0) {
+    panel.innerHTML = '<div class="dd-empty">No options available</div>';
+  } else {
+    panel.innerHTML = values.map((v, i) => `
+      <label class="dd-item">
+        <input type="checkbox" value="${esc(v)}" ${activeSet.has(v) ? 'checked' : ''}
+          onchange="toggleDDItem('${key}', this.value, this.checked)">
+        <span>${esc(v)}</span>
+      </label>`
+    ).join('');
+  }
+
+  // Update trigger label and style
+  const count = activeSet.size;
+  if (count === 0) {
+    label.textContent = cfg.placeholder;
+    trigger.classList.remove('has-selection');
+  } else if (count === 1) {
+    label.textContent = [...activeSet][0];
+    trigger.classList.add('has-selection');
+  } else {
+    label.textContent = `${count} selected`;
+    trigger.classList.add('has-selection');
+  }
+}
+
+function toggleDDItem(key, value, checked) {
+  const cfg = DD_CONFIG[key];
+  const set = cfg.set();
+  if (checked) set.add(value); else set.delete(value);
+  // Re-render label only (don't re-render panel — prevents layout shift)
+  const label = document.getElementById(cfg.labelId);
+  const trigger = document.getElementById(cfg.triggerId);
+  const count = set.size;
+  if (count === 0) { label.textContent = cfg.placeholder; trigger.classList.remove('has-selection'); }
+  else if (count === 1) { label.textContent = [...set][0]; trigger.classList.add('has-selection'); }
+  else { label.textContent = `${count} selected`; trigger.classList.add('has-selection'); }
+  updateClearBtn();
+  renderGames();
+}
+
 function updateDropdowns() {
-  // Base: venue + availability applied, but not difficulty/court/time
+  // Base: venue + availability, not diff/court/time
   let base = activeVenue === 'all' ? allGames : allGames.filter(g => g.venueId === activeVenue);
   if (activeFilter === 'open') base = base.filter(g => g.available);
   if (activeFilter === 'full') base = base.filter(g => !g.available);
 
-  // Each dropdown: filter base by all OTHER active dropdowns
+  // Each group: filter by OTHER two active groups
   const diffPool  = base
-    .filter(g => !activeCourt || g.court === activeCourt)
-    .filter(g => !activeTime  || normalizeTime(g.time) === activeTime);
+    .filter(g => !activeCourts.size || activeCourts.has(g.court))
+    .filter(g => !activeTimes.size  || activeTimes.has(normalizeTime(g.time)));
   const courtPool = base
-    .filter(g => !activeDifficulty || g.difficulty === activeDifficulty)
-    .filter(g => !activeTime       || normalizeTime(g.time) === activeTime);
+    .filter(g => !activeDifficulties.size || activeDifficulties.has(g.difficulty))
+    .filter(g => !activeTimes.size        || activeTimes.has(normalizeTime(g.time)));
   const timePool  = base
-    .filter(g => !activeDifficulty || g.difficulty === activeDifficulty)
-    .filter(g => !activeCourt      || g.court === activeCourt);
+    .filter(g => !activeDifficulties.size || activeDifficulties.has(g.difficulty))
+    .filter(g => !activeCourts.size       || activeCourts.has(g.court));
 
   const difficulties = [...new Set(diffPool.map(g => g.difficulty).filter(Boolean))].sort();
   const courts = [...new Set(courtPool.map(g => g.court).filter(Boolean))].sort((a, b) => {
-    if (a === 'N/A') return 1;
-    if (b === 'N/A') return -1;
+    if (a === 'N/A') return 1; if (b === 'N/A') return -1;
     return a.localeCompare(b, undefined, { numeric: true });
   });
   const times = sortTimes([...new Set(timePool.map(g => normalizeTime(g.time)).filter(Boolean))]);
 
-  // Auto-reset a selection if it no longer exists in the filtered options
-  if (activeDifficulty && !difficulties.includes(activeDifficulty)) { activeDifficulty = ''; updateClearBtn(); }
-  if (activeCourt      && !courts.includes(activeCourt))            { activeCourt = '';      updateClearBtn(); }
-  if (activeTime       && !times.includes(activeTime))              { activeTime = '';        updateClearBtn(); }
+  // Remove any active selections that no longer exist in available options
+  let changed = false;
+  for (const v of [...activeDifficulties]) if (!difficulties.includes(v)) { activeDifficulties.delete(v); changed = true; }
+  for (const v of [...activeCourts])       if (!courts.includes(v))       { activeCourts.delete(v);       changed = true; }
+  for (const v of [...activeTimes])        if (!times.includes(v))        { activeTimes.delete(v);         changed = true; }
+  if (changed) updateClearBtn();
 
-  const diffSel  = document.getElementById('diff-select');
-  const courtSel = document.getElementById('court-select');
-  const timeSel  = document.getElementById('time-select');
-
-  diffSel.innerHTML  = '<option value="">All levels</option>' +
-    difficulties.map(d => `<option value="${esc(d)}" ${d === activeDifficulty ? 'selected' : ''}>${esc(d)}</option>`).join('');
-  courtSel.innerHTML = '<option value="">All courts</option>' +
-    courts.map(c => `<option value="${esc(c)}" ${c === activeCourt ? 'selected' : ''}>${esc(c)}</option>`).join('');
-  timeSel.innerHTML  = '<option value="">All times</option>' +
-    times.map(t => `<option value="${esc(t)}" ${t === activeTime ? 'selected' : ''}>${esc(t)}</option>`).join('');
+  renderDropdown('diff',  difficulties);
+  renderDropdown('court', courts);
+  renderDropdown('time',  times);
 }
 
 // ── Tab counts + dots ──────────────────────────────────────────────────────────
@@ -668,9 +773,9 @@ function renderGames() {
   if (activeFilter === 'open') visible = visible.filter(g => g.available);
   if (activeFilter === 'full') visible = visible.filter(g => !g.available);
   // Filter by difficulty / court
-  if (activeDifficulty) visible = visible.filter(g => g.difficulty === activeDifficulty);
-  if (activeCourt)      visible = visible.filter(g => g.court === activeCourt);
-  if (activeTime)       visible = visible.filter(g => normalizeTime(g.time) === activeTime);
+  if (activeDifficulties.size) visible = visible.filter(g => activeDifficulties.has(g.difficulty));
+  if (activeCourts.size)       visible = visible.filter(g => activeCourts.has(g.court));
+  if (activeTimes.size)        visible = visible.filter(g => activeTimes.has(normalizeTime(g.time)));
 
   // Apply multi-sort
   visible = applySort(visible);
@@ -843,6 +948,139 @@ function connectSSE() {
     sse.close();
     setTimeout(connectSSE, 5000);
   };
+}
+
+// ── Notification panel ────────────────────────────────────────────────────────
+function openNotifPanel() {
+  document.getElementById('notif-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  loadNotifSettings();
+  loadRules();
+}
+function closeNotifPanel(e) {
+  if (e && e.target !== document.getElementById('notif-overlay')) return;
+  document.getElementById('notif-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNotifPanel(); });
+
+async function loadNotifSettings() {
+  try {
+    const r = await fetch('/api/notifications');
+    const d = await r.json();
+    document.getElementById('cfg-email').value      = d.email     || '';
+    document.getElementById('cfg-gmail-user').value = d.gmailUser || '';
+    document.getElementById('cfg-gmail-pass').value = d.gmailPass || '';
+    document.getElementById('cfg-resend-key').value = d.resendKey || '';
+  } catch(e) { console.error('Failed to load notif settings', e); }
+}
+async function saveEmailSettings() {
+  const payload = {
+    email    : document.getElementById('cfg-email').value.trim(),
+    gmailUser: document.getElementById('cfg-gmail-user').value.trim(),
+    gmailPass: document.getElementById('cfg-gmail-pass').value,
+    resendKey: document.getElementById('cfg-resend-key').value,
+  };
+  try {
+    await fetch('/api/notifications', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const s = document.getElementById('save-status');
+    s.style.display = 'inline';
+    setTimeout(() => { s.style.display = 'none'; }, 2500);
+  } catch(e) { toast('Failed to save settings', 'error'); }
+}
+async function sendTestEmail() {
+  const btn = document.getElementById('test-btn');
+  btn.textContent = 'Sending…'; btn.disabled = true;
+  try {
+    const r = await fetch('/api/notifications/test', { method:'POST' });
+    const d = await r.json();
+    if (d.ok) toast('✉️ ' + d.message, 'success');
+    else toast('Error: ' + (d.error || 'unknown'), 'error');
+  } catch(e) { toast('Failed to send test email', 'error'); }
+  finally { btn.textContent = 'Send test email'; btn.disabled = false; }
+}
+async function loadRules() {
+  try {
+    const r = await fetch('/api/notifications/rules');
+    renderRules(await r.json());
+  } catch(e) { console.error('Failed to load rules', e); }
+}
+function renderRules(rules) {
+  const container = document.getElementById('rules-list');
+  if (!rules || rules.length === 0) {
+    container.innerHTML = '<div style="font-size:.85rem;color:var(--gray500);text-align:center;padding:1rem">No rules yet — add one below</div>';
+    return;
+  }
+  container.innerHTML = rules.map(rule => {
+    const filters = rule.filters || {};
+    const tags = [
+      filters.gym        ? `Gym: ${esc(filters.gym)}`              : null,
+      filters.date       ? `Date: ${esc(filters.date)}`            : null,
+      filters.time       ? `Time: ${esc(filters.time)}`            : null,
+      filters.difficulty ? `Difficulty: ${esc(filters.difficulty)}`: null,
+      filters.court      ? `Court: ${esc(filters.court)}`          : null,
+    ].filter(Boolean);
+    return `
+<div class="rule-card" id="rule-${esc(rule.id)}">
+  <div class="rule-card-header">
+    <label class="rule-toggle">
+      <input type="checkbox" ${rule.enabled ? 'checked' : ''} onchange="toggleRule('${esc(rule.id)}', this.checked)">
+      <span class="rule-toggle-slider"></span>
+    </label>
+    <span class="rule-label">${esc(rule.label)}</span>
+    <button class="rule-delete" onclick="deleteRule('${esc(rule.id)}')">🗑</button>
+  </div>
+  <div class="rule-filters">
+    ${tags.length
+      ? tags.map(t => `<span class="rule-filter-tag active">${t}</span>`).join('')
+      : '<span class="rule-filter-tag">Matches all sessions</span>'}
+  </div>
+</div>`;
+  }).join('');
+}
+async function toggleRule(id, enabled) {
+  await fetch(`/api/notifications/rules/${id}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ enabled }),
+  });
+}
+async function deleteRule(id) {
+  if (!confirm('Delete this alert rule?')) return;
+  await fetch(`/api/notifications/rules/${id}`, { method:'DELETE' });
+  loadRules();
+}
+function openAddRule() {
+  document.getElementById('add-rule-form').classList.add('open');
+  document.getElementById('add-rule-btn').style.display = 'none';
+  document.getElementById('new-rule-label').focus();
+}
+function cancelNewRule() {
+  document.getElementById('add-rule-form').classList.remove('open');
+  document.getElementById('add-rule-btn').style.display = '';
+  ['new-rule-label','new-f-gym','new-f-date','new-f-time','new-f-difficulty','new-f-court'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+}
+async function saveNewRule() {
+  const label = document.getElementById('new-rule-label').value.trim();
+  if (!label) { document.getElementById('new-rule-label').focus(); return; }
+  const rule = {
+    label, enabled: true,
+    filters: {
+      gym       : document.getElementById('new-f-gym').value.trim(),
+      date      : document.getElementById('new-f-date').value.trim(),
+      time      : document.getElementById('new-f-time').value.trim(),
+      difficulty: document.getElementById('new-f-difficulty').value.trim(),
+      court     : document.getElementById('new-f-court').value.trim(),
+    },
+  };
+  try {
+    await fetch('/api/notifications/rules', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(rule),
+    });
+    cancelNewRule();
+    loadRules();
+    toast('✓ Alert rule added', 'success');
+  } catch(e) { toast('Failed to save rule', 'error'); }
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
