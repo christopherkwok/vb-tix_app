@@ -8,8 +8,10 @@ A lightweight, **zero-dependency** Node.js app that scrapes [NYUrban's open play
 
 - ✅ **All 5 venues** — Laguardia/Fri, Beacon/Fri, Brandeis/Fri, Brandeis/Sun, Clinics
 - ✅ **Real-time UI** — Server-Sent Events (SSE) push updates instantly to the browser
-- ✅ **Contextual filters** — Availability, Difficulty, Court, and Time dropdowns that only show options present in the current filtered view
+- ✅ **Contextual multiselect filters** — Difficulty, Court, and Time dropdowns show only options present in the current view; selecting multiple values in one group narrows the others automatically
+- ✅ **Multi-key sort** — click any sort chip to add it as a sort key; click again to reverse; a rank badge shows priority when multiple sorts are active
 - ✅ **Browser notifications** — opt-in alerts when new spots open
+- ✅ **Email alerts** — rule-based email notifications via Gmail App Password or Resend API; configured through the in-app 🔔 Alerts panel or directly in `notifications.json`
 - ✅ **Zero dependencies** — pure Node.js built-ins only (`http`, `https`, `fs`, `url`)
 - ✅ **Force refresh** — manual button for an instant re-scrape
 
@@ -79,6 +81,23 @@ The **Available** column is a number (`3`, `0`) or `"Sold Out"`.
 
 ---
 
+## File Structure
+
+```
+vb-tix_tracker/
+├── server.js            # Node.js backend — scraping, SSE, API, email
+├── index.html           # Single-page frontend — all CSS + JS inline
+├── notifications.json   # Email config + alert rules (auto-created on first save)
+├── debug/
+│   ├── debug-fetch.js   # Step 1: scrapes main page + tests AJAX actions
+│   ├── debug-fetch2.js  # Step 2: fetches openplay.js + brute-forces AJAX params
+│   ├── debug-fetch3.js  # Step 3: confirms correct action/buttonid per venue
+│   └── debug-output/    # Raw HTML saved by the debug scripts
+└── README.md
+```
+
+---
+
 ## API Endpoints
 
 | Method | Path | Description |
@@ -92,6 +111,31 @@ The **Available** column is a number (`3`, `0`) or `"Sold Out"`.
 
 ---
 
+## UI Features
+
+### Venue tabs
+One tab per venue plus an "All Venues" aggregate. Each tab shows a count badge and a colour dot: green = at least one open spot, red = all sold out, grey = no sessions.
+
+### Availability filter
+Three chips — **All**, **Available only**, **Sold out** — that pre-filter before the dropdown filters apply.
+
+### Contextual multiselect dropdowns (Difficulty / Court / Time)
+Each dropdown shows only the values that exist in the remaining filtered view after the other two dropdowns are applied. Selecting e.g. "Advanced" from Difficulty automatically removes Time options that have no Advanced sessions. Active selections that disappear from the available pool are silently cleared.
+
+### Multi-key sort
+Click a sort chip to make it the primary sort (ascending ↑). Click again to reverse (↓). Click a third time to remove it. When more than one sort is active, a numbered rank badge appears on each chip showing priority order. Clicking a new chip appends it at the lowest priority. "✕ Clear sort" resets everything.
+
+### Email Alerts panel (🔔 Alerts)
+Opens a slide-up modal for configuring server-side email notifications:
+
+- **Delivery settings** — recipient address, Gmail sender + App Password, or Resend API key
+- **Alert rules** — each rule triggers an email when a *newly available* session matches all its filters; blank filters match anything; rules can be toggled on/off or deleted
+- **Send test email** — verifies your credentials without waiting for a real scrape
+
+Settings are stored in `notifications.json` and survive server restarts.
+
+---
+
 ## Changing the Poll Interval
 
 Edit the last line of `server.js`:
@@ -99,6 +143,58 @@ Edit the last line of `server.js`:
 ```js
 startPolling(5 * 60 * 1000); // every 5 minutes — change as needed
 ```
+
+---
+
+## `notifications.json` Reference
+
+This file is created automatically when you first save settings through the UI. You can also edit it directly:
+
+```json
+{
+  "email": "you@example.com",
+  "gmailUser": "sender@gmail.com",
+  "gmailPass": "xxxx xxxx xxxx xxxx",
+  "resendKey": "re_...",
+  "rules": [
+    {
+      "id": "rule-1",
+      "label": "Beacon Advanced Friday nights",
+      "enabled": true,
+      "filters": {
+        "gym":        "Beacon",
+        "date":       "",
+        "time":       "7:00 pm",
+        "court":      "",
+        "difficulty": "Advanced"
+      }
+    }
+  ]
+}
+```
+
+Filter matching rules:
+- `gym`, `date`, `time` — case-insensitive **partial** match (blank = any)
+- `difficulty`, `court` — case-insensitive **exact** match (blank = any)
+
+---
+
+## Debug Scripts
+
+The `debug/` folder contains three one-shot scripts for diagnosing issues with the NYUrban AJAX endpoint. Run them manually when the scraper breaks:
+
+```bash
+# Step 1 — fetch main page, test AJAX action names
+node debug/debug-fetch.js
+
+# Step 2 — fetch openplay.js, brute-force AJAX parameter combos
+node debug/debug-fetch2.js
+
+# Step 3 — confirm correct action + buttonid per venue
+node debug/debug-fetch3.js
+```
+
+Each script saves raw HTML responses to `debug/debug-output/`. Share that folder when reporting issues.
 
 ---
 
