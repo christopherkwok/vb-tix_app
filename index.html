@@ -484,7 +484,7 @@
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
 let allGames       = [];
-let activeVenue    = 'all';
+let activeVenues   = new Set();  // empty = All Venues
 let activeFilter     = 'all';
 let activeDifficulties = new Set();   // multiselect
 let activeCourts       = new Set();   // multiselect
@@ -519,8 +519,15 @@ function sendNotification(title, body) {
 
 // ── Venue / filter ─────────────────────────────────────────────────────────────
 function setVenue(v) {
-  activeVenue = v;
-  document.querySelectorAll('.venue-tab').forEach(el => el.classList.toggle('active', el.dataset.venue === v));
+  if (v === 'all') {
+    activeVenues.clear();
+  } else {
+    if (activeVenues.has(v)) activeVenues.delete(v); else activeVenues.add(v);
+  }
+  document.querySelectorAll('.venue-tab').forEach(el => {
+    const isAll = el.dataset.venue === 'all';
+    el.classList.toggle('active', isAll ? activeVenues.size === 0 : activeVenues.has(el.dataset.venue));
+  });
   renderGames();
 }
 function setFilter(f) {
@@ -793,7 +800,7 @@ function toggleDDItem(key, value, checked) {
 
 function updateDropdowns() {
   // Base: venue + availability, not diff/court/time
-  let base = activeVenue === 'all' ? allGames : allGames.filter(g => g.venueId === activeVenue);
+  let base = activeVenues.size === 0 ? allGames : allGames.filter(g => activeVenues.has(g.venueId));
   if (activeFilter === 'open') base = base.filter(g => g.available);
   if (activeFilter === 'full') base = base.filter(g => !g.available);
 
@@ -864,7 +871,7 @@ function renderGames() {
   updateDropdowns();
 
   // Filter by venue
-  let visible = activeVenue === 'all' ? allGames : allGames.filter(g => g.venueId === activeVenue);
+  let visible = activeVenues.size === 0 ? allGames : allGames.filter(g => activeVenues.has(g.venueId));
   // Filter by availability
   if (activeFilter === 'open') visible = visible.filter(g => g.available);
   if (activeFilter === 'full') visible = visible.filter(g => !g.available);
@@ -882,7 +889,7 @@ function renderGames() {
   document.getElementById('stat-full').textContent  = allGames.filter(g => !g.available).length;
 
   // Filtered count label
-  const total = activeVenue === 'all' ? allGames.length : allGames.filter(g => g.venueId === activeVenue).length;
+  const total = activeVenues.size === 0 ? allGames.length : allGames.filter(g => activeVenues.has(g.venueId)).length;
   document.getElementById('filtered-count').textContent =
     visible.length !== total ? `Showing ${visible.length} of ${total}` : '';
 

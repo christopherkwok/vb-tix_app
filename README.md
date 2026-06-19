@@ -114,7 +114,7 @@ vb-tix_tracker/
 ## UI Features
 
 ### Venue tabs
-One tab per venue plus an "All Venues" aggregate. Each tab shows a count badge and a colour dot: green = at least one open spot, red = all sold out, grey = no sessions.
+One tab per venue plus an "All Venues" reset. Each tab shows a count badge and a colour dot: green = at least one open spot, red = all sold out, grey = no sessions. Click individual venue tabs to toggle them — multiple venues can be selected simultaneously (they highlight green). Clicking "All Venues" clears all selections and shows everything.
 
 ### Availability filter
 Three chips — **All**, **Available only**, **Sold out** — that pre-filter before the dropdown filters apply.
