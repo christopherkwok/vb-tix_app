@@ -28,7 +28,7 @@ let lastScrape   = null;
 let allGames     = [];
 let scrapeErrors = {};
 let subscribers  = [];
-let previousIds  = new Set();
+let previousAvailableIds = new Set();
 
 // ── Notification config ───────────────────────────────────────────────────────
 // notifications.json schema:
@@ -283,7 +283,7 @@ function parseTable(html, venue) {
         difficulty = expandedLevel.replace(courtMatch[1], '').replace(/[-–,]/g, '').trim() || expandedLevel;
       }
     }
-    difficulty = difficulty.replace(/^[^a-zA-Z]+/, '').replace(/[^a-zA-Z/)]+$/, '').trim();
+    difficulty = difficulty.replace(/^[^a-zA-Z]+/, '').replace(/[^a-zA-Z)]+$/, '').trim();
     difficulty = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
 
     const id = `${venue.id}::${date}::${level}`.replace(/\s+/g, '-').toLowerCase();
@@ -321,8 +321,8 @@ async function scrapeAll() {
     }
   }
 
-  const newlyAvailable = results.filter(g => g.available && !previousIds.has(g.id));
-  results.forEach(g => previousIds.add(g.id));
+  const newlyAvailable = results.filter(g => g.available && !previousAvailableIds.has(g.id));
+  previousAvailableIds = new Set(results.filter(g => g.available).map(g => g.id));
 
   allGames     = results;
   lastScrape   = new Date();

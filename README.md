@@ -126,11 +126,13 @@ Each dropdown shows only the values that exist in the remaining filtered view af
 Click a sort chip to make it the primary sort (ascending ↑). Click again to reverse (↓). Click a third time to remove it. When more than one sort is active, a numbered rank badge appears on each chip showing priority order. Clicking a new chip appends it at the lowest priority. "✕ Clear sort" resets everything.
 
 ### Email Alerts panel (🔔 Alerts)
-Opens a slide-up modal for configuring server-side email notifications:
+Opens a modal for configuring server-side email notifications:
 
-- **Delivery settings** — recipient address, Gmail sender + App Password, or Resend API key
-- **Alert rules** — each rule triggers an email when a *newly available* session matches all its filters; blank filters match anything; rules can be toggled on/off or deleted
-- **Send test email** — verifies your credentials without waiting for a real scrape
+- **Delivery settings** — organised as two options with required-field `*` markers:
+  - *Option A — Gmail*: recipient address `*`, Gmail sender address `*`, Gmail App Password `*`
+  - *Option B — Resend*: recipient address `*`, Resend API key `*`
+- **Alert rules** — each rule triggers an email when a newly available session matches all its filters. All 5 filter fields are always shown — green = set, grey italic "Any" = unset. Difficulty and Court are exact-match; Gym, Date, and Time are partial-match.
+- **Send test email** — verifies credentials without waiting for a real scrape
 
 Settings are stored in `notifications.json` and survive server restarts.
 
@@ -177,6 +179,8 @@ Filter matching rules:
 - `gym`, `date`, `time` — case-insensitive **partial** match (blank = any)
 - `difficulty`, `court` — case-insensitive **exact** match (blank = any)
 
+**When alerts fire:** once per opening event — when a session transitions from unavailable (or unseen) to available. If the same session later sells out and reopens, it fires again. Alerts do not repeat while a session remains continuously available across scrapes.
+
 ---
 
 ## Debug Scripts
@@ -198,85 +202,38 @@ Each script saves raw HTML responses to `debug/debug-output/`. Share that folder
 
 ---
 
-## 📧 Email & 📱 Text Notifications (Free Options)
+## 📧 Email & 📱 Text Notifications (Setup Guide)
 
-Browser notifications work out of the box (click "Enable Notifications" in the UI). For email or SMS alerts when new spots open, here are the best free options:
+Browser notifications work out of the box (click "Enable Notifications" in the UI). Email alerts are **built in** — no code changes needed. Open the 🔔 Alerts panel in the UI and follow the steps for your chosen sending method.
 
-### Email — Gmail + Nodemailer (easiest, truly free)
+### Option A — Gmail (easiest, truly free)
 
-Uses your own Gmail account as the sender. No paid service needed.
+Uses your own Gmail account as the sender. Nodemailer is used if installed (`npm install nodemailer`); otherwise the server falls back to Resend if configured.
 
 **Setup:**
 1. Enable 2-Factor Authentication on your Google account
 2. Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) → create an App Password for "Mail"
-3. Install Nodemailer: `npm install nodemailer`
-4. Add to `server.js`:
-
-```js
-const nodemailer = require('nodemailer');
-
-const mailer = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: 'your.email@gmail.com',
-    pass: 'your-16-char-app-password', // NOT your regular Gmail password
-  },
-});
-
-async function sendEmailAlert(games) {
-  const list = games.map(g =>
-    `• ${g.venueLabel} — ${g.date} ${g.time} | ${g.difficulty} ${g.court !== 'N/A' ? '| ' + g.court : ''} | ${g.spots} spots`
-  ).join('\n');
-
-  await mailer.sendMail({
-    from: 'your.email@gmail.com',
-    to: 'your.email@gmail.com',   // send to yourself (or a list)
-    subject: `🏐 ${games.length} NYUrban spot${games.length > 1 ? 's' : ''} just opened!`,
-    text: `New volleyball spots are available:\n\n${list}\n\nRegister: https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1`,
-  });
-}
-```
-
-Then call `sendEmailAlert(newlyAvailable)` inside `scrapeAll()` where it broadcasts `new_available`.
+3. In the 🔔 Alerts panel, fill in:
+   - **Send alerts to** — the address that receives alerts
+   - **Gmail sender address** — your Gmail address (the sender)
+   - **Gmail App Password** — the 16-character code from step 2 (not your regular password)
+4. Click **Save settings**, then **Send test email** to confirm it works
 
 **Limits:** ~500 emails/day. Fine for personal use.  
 **Caveat:** May land in spam on first send — mark "Not Spam" once and it improves.
 
 ---
 
-### Email — Resend (best free API, no spam issues)
+### Option B — Resend (best free API, no spam issues)
 
-[Resend](https://resend.com) offers **3,000 free emails/month** with a real sending domain, no credit card required.
+[Resend](https://resend.com) offers **3,000 free emails/month** with a real sending domain, no credit card required. No npm install needed.
 
 **Setup:**
-1. Sign up at resend.com → grab your API key
-2. No npm needed — use Node's built-in `https`:
-
-```js
-async function sendResendAlert(games) {
-  const list = games.map(g => `• ${g.venueLabel} — ${g.date} ${g.time} | ${g.difficulty} | ${g.spots} spots`).join('\n');
-
-  const body = JSON.stringify({
-    from: 'onboarding@resend.dev', // works without a custom domain
-    to: ['you@example.com'],
-    subject: `🏐 ${games.length} NYUrban spot${games.length > 1 ? 's' : ''} opened!`,
-    text: `New spots:\n\n${list}\n\nRegister: https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1`,
-  });
-
-  return new Promise((resolve, reject) => {
-    const req = require('https').request({
-      hostname: 'api.resend.com', path: '/emails', method: 'POST',
-      headers: {
-        'Authorization': 'Bearer re_YOUR_API_KEY',
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body),
-      },
-    }, res => { res.resume(); resolve(res.statusCode); });
-    req.on('error', reject);
-    req.write(body); req.end();
-  });
-}
-```
+1. Sign up at [resend.com](https://resend.com) → grab your API key
+2. In the 🔔 Alerts panel, fill in:
+   - **Send alerts to** — the address that receives alerts
+   - **Resend API key** — paste your `re_...` key
+3. Click **Save settings**, then **Send test email** to confirm it works
 
 ---
 

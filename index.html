@@ -1011,15 +1011,22 @@ function renderRules(rules) {
     container.innerHTML = '<div style="font-size:.85rem;color:var(--gray500);text-align:center;padding:1rem">No rules yet — add one below</div>';
     return;
   }
+  const FILTER_DEFS = [
+    { key: 'gym',        label: 'Gym',        hint: 'partial match' },
+    { key: 'date',       label: 'Date',       hint: 'partial match' },
+    { key: 'time',       label: 'Time',       hint: 'partial match' },
+    { key: 'difficulty', label: 'Difficulty', hint: 'exact match'   },
+    { key: 'court',      label: 'Court',      hint: 'exact match'   },
+  ];
   container.innerHTML = rules.map(rule => {
     const filters = rule.filters || {};
-    const tags = [
-      filters.gym        ? `Gym: ${esc(filters.gym)}`              : null,
-      filters.date       ? `Date: ${esc(filters.date)}`            : null,
-      filters.time       ? `Time: ${esc(filters.time)}`            : null,
-      filters.difficulty ? `Difficulty: ${esc(filters.difficulty)}`: null,
-      filters.court      ? `Court: ${esc(filters.court)}`          : null,
-    ].filter(Boolean);
+    const tags = FILTER_DEFS.map(f => {
+      const val = (filters[f.key] || '').trim();
+      const valHtml = val
+        ? esc(val)
+        : `<span style="opacity:.5;font-style:italic">Any</span>`;
+      return `<span class="rule-filter-tag${val ? ' active' : ''}" title="${val ? f.hint : 'matches any value'}">${esc(f.label)}: ${valHtml}</span>`;
+    });
     return `
 <div class="rule-card" id="rule-${esc(rule.id)}">
   <div class="rule-card-header">
@@ -1031,9 +1038,7 @@ function renderRules(rules) {
     <button class="rule-delete" onclick="deleteRule('${esc(rule.id)}')">🗑</button>
   </div>
   <div class="rule-filters">
-    ${tags.length
-      ? tags.map(t => `<span class="rule-filter-tag active">${t}</span>`).join('')
-      : '<span class="rule-filter-tag">Matches all sessions</span>'}
+    ${tags.join('')}
   </div>
 </div>`;
   }).join('');
@@ -1101,23 +1106,28 @@ connectSSE();
       <!-- Email settings -->
       <div class="panel-section">
         <div class="panel-section-title">Delivery Settings</div>
-        <div class="field-row">
+        <p style="font-size:.83rem;color:var(--gray500)">Fields marked <span style="color:var(--full);font-weight:700">*</span> are required. Choose one sending method — Gmail or Resend.</p>
+        <div class="field-row single">
           <div class="field-group">
-            <label>Send alerts to</label>
+            <label>Send alerts to <span style="color:var(--full)">*</span></label>
             <input class="field-input" id="cfg-email" type="email" placeholder="you@example.com">
           </div>
-          <div class="field-group">
-            <label>Gmail sender address</label>
-            <input class="field-input" id="cfg-gmail-user" type="email" placeholder="sender@gmail.com">
-          </div>
         </div>
+        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray500);padding:.4rem 0 .1rem">Option A — Gmail</div>
         <div class="field-row">
           <div class="field-group">
-            <label>Gmail App Password <span class="filter-hint">(not your regular password — <a href="https://myaccount.google.com/apppasswords" target="_blank">get one here</a>)</span></label>
-            <input class="field-input" id="cfg-gmail-pass" type="password" placeholder="xxxx xxxx xxxx xxxx">
+            <label>Gmail sender address <span style="color:var(--full)">*</span></label>
+            <input class="field-input" id="cfg-gmail-user" type="email" placeholder="sender@gmail.com">
           </div>
           <div class="field-group">
-            <label>Resend API key <span class="filter-hint">(alternative to Gmail — <a href="https://resend.com" target="_blank">resend.com</a>)</span></label>
+            <label>Gmail App Password <span style="color:var(--full)">*</span> <span class="filter-hint">— <a href="https://myaccount.google.com/apppasswords" target="_blank">get one here</a></span></label>
+            <input class="field-input" id="cfg-gmail-pass" type="password" placeholder="xxxx xxxx xxxx xxxx">
+          </div>
+        </div>
+        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray500);padding:.4rem 0 .1rem">Option B — Resend <span style="font-weight:400;text-transform:none;letter-spacing:0">(free, no spam issues)</span></div>
+        <div class="field-row single">
+          <div class="field-group">
+            <label>Resend API key <span style="color:var(--full)">*</span> <span class="filter-hint">— free at <a href="https://resend.com" target="_blank">resend.com</a></span></label>
             <input class="field-input" id="cfg-resend-key" type="password" placeholder="re_...">
           </div>
         </div>
@@ -1142,10 +1152,11 @@ connectSSE();
         <div class="add-rule-form" id="add-rule-form">
           <div class="field-row single">
             <div class="field-group">
-              <label>Rule name</label>
+              <label>Rule name <span style="color:var(--full)">*</span></label>
               <input class="field-input" id="new-rule-label" placeholder="e.g. Beacon Advanced Friday nights">
             </div>
           </div>
+          <p style="font-size:.78rem;color:var(--gray500)">All filter fields below are optional — blank matches any value. <strong>Difficulty</strong> and <strong>Court</strong> require an exact match; <strong>Gym</strong>, <strong>Date</strong>, and <strong>Time</strong> use a partial match.</p>
           <div class="field-row">
             <div class="field-group">
               <label>Gym <span class="filter-hint">partial match</span></label>
