@@ -1,14 +1,26 @@
 {
   "rules": [
     {
-      "id": "example-1",
-      "label": "Beacon Advanced Friday nights",
-      "enabled": false,
+      "id": "rule-1",
+      "label": "Lag Int Friday nights",
+      "enabled": true,
       "filters": {
-        "gym":        ["Beacon"],
+        "gym":        ["Laguardia"],
         "date":       [],
         "time":       ["7:00 pm"],
-        "difficulty": ["Advanced"],
+        "difficulty": ["Intermediate"],
+        "court":      []
+      }
+    },
+    {
+      "id": "rule-2",
+      "label": "Brandeis Int Sunday afternoons",
+      "enabled": true,
+      "filters": {
+        "gym":        ["Brandeis"],
+        "date":       [],
+        "time":       ["12:00 pm"],
+        "difficulty": ["Intermediate"],
         "court":      []
       }
     }
