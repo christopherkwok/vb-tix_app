@@ -35,6 +35,24 @@
         ],
         "court": []
       }
+    },
+    {
+      "id": "rule-1782029222680",
+      "label": "Brandeis Beg Sunday mornings",
+      "enabled": true,
+      "filters": {
+        "gym": [
+          "Brandeis H.S."
+        ],
+        "date": [],
+        "time": [
+          "9:00 am - 12:00 pm"
+        ],
+        "difficulty": [],
+        "court": [
+          "Court 2"
+        ]
+      }
     }
   ]
 }
