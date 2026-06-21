@@ -39,7 +39,7 @@
     {
       "id": "rule-1782029222680",
       "label": "Brandeis Beg Sunday mornings",
-      "enabled": true,
+      "enabled": false,
       "filters": {
         "gym": [
           "Brandeis H.S."
