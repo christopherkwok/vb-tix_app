@@ -5,11 +5,17 @@
       "label": "Lag Int Friday nights",
       "enabled": true,
       "filters": {
-        "gym":        ["Laguardia"],
-        "date":       [],
-        "time":       ["7:00 pm"],
-        "difficulty": ["Intermediate"],
-        "court":      []
+        "gym": [
+          "Laguardia"
+        ],
+        "date": [],
+        "time": [
+          "7:00 pm"
+        ],
+        "difficulty": [
+          "Intermediate"
+        ],
+        "court": []
       }
     },
     {
@@ -17,11 +23,17 @@
       "label": "Brandeis Int Sunday afternoons",
       "enabled": true,
       "filters": {
-        "gym":        ["Brandeis"],
-        "date":       [],
-        "time":       ["12:00 pm"],
-        "difficulty": ["Intermediate"],
-        "court":      []
+        "gym": [
+          "Brandeis"
+        ],
+        "date": [],
+        "time": [
+          "12:00 pm"
+        ],
+        "difficulty": [
+          "Intermediate"
+        ],
+        "court": []
       }
     }
   ]
