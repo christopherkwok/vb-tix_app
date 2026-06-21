@@ -213,6 +213,7 @@
   /* ── Meta bar ── */
   .meta-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; flex-wrap:wrap; gap:.5rem; }
   .last-updated { font-size:.8rem; color:var(--gray500); }
+  .last-updated.pending { color:var(--warn,#b45309); font-style:italic; }
 
   /* ── Games grid ── */
   #games-container { min-height:200px; }
@@ -460,7 +461,7 @@
 
   <!-- Meta bar -->
   <div class="meta-bar">
-    <span class="last-updated" id="last-updated">Not yet fetched</span>
+    <span class="last-updated pending" id="last-updated">⏳ Data not yet available — scraper runs every 10 min</span>
     <span style="font-size:.8rem;color:var(--gray500)" id="filtered-count"></span>
   </div>
 
@@ -876,9 +877,10 @@ function setStatus(state, text) {
   document.getElementById('status-text').textContent = text;
 }
 function updateLastUpdated(ts) {
+  const el = document.getElementById('last-updated');
   if (!ts) return;
-  document.getElementById('last-updated').textContent =
-    'Last updated: ' + new Date(ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  el.classList.remove('pending');
+  el.textContent = 'Last updated: ' + new Date(ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────────────
