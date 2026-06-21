@@ -1,0 +1,35 @@
+name: Scrape NYUrban
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # every 10 minutes
+  workflow_dispatch:           # allow manual trigger from GitHub Actions UI
+
+permissions:
+  contents: write              # needed to commit docs/games.json back to the repo
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run scraper
+        run: node scraper.js
+        env:
+          RESEND_KEY:  ${{ secrets.RESEND_KEY }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+
+      - name: Commit updated game data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/games.json
+          git diff --staged --quiet || git commit -m "chore: update games data [skip ci]"
+          git push

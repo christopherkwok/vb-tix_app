@@ -42,6 +42,81 @@ Press **Ctrl + C** to stop.
 
 ---
 
+## Cloud Deployment (Free, No Credit Card)
+
+Host the tracker permanently using **GitHub Actions** (scraper cron) + **GitHub Pages** (frontend). Both are completely free for public repos with no credit card required.
+
+### How it works
+
+```
+GitHub Actions (every 10 min)
+    → node scraper.js
+    → scrapes all 5 venues
+    → sends email alerts via Resend if new spots matched rules
+    → commits docs/games.json to the repo
+
+GitHub Pages
+    → serves docs/index.html (your dashboard)
+    → serves docs/games.json (the data, fetched by the browser every 30s)
+```
+
+### Setup
+
+**1. Push to a public GitHub repository**
+```bash
+git init
+git add .
+git commit -m "init"
+git remote add origin https://github.com/YOUR_USERNAME/vb-tix-tracker.git
+git push -u origin main
+```
+
+**2. Enable GitHub Pages**  
+Go to your repo → Settings → Pages → Source: **Deploy from a branch** → Branch: `main` / Folder: `/docs` → Save.
+
+Your live URL will be `https://YOUR_USERNAME.github.io/vb-tix-tracker/`
+
+**3. Enable GitHub Actions**  
+Go to your repo → Actions tab → click "I understand my workflows, go ahead and enable them."  
+The scraper runs automatically every 10 minutes and commits fresh data.
+
+**4. Configure email alerts (optional)**  
+Go to your repo → Settings → Secrets and variables → Actions → New repository secret:
+
+| Secret name | Value |
+|---|---|
+| `RESEND_KEY` | Your Resend API key (free at [resend.com](https://resend.com), no CC required) |
+| `ALERT_EMAIL` | The address that receives alert emails |
+
+Edit `config/alerts.json` in your repo to add your alert rules (set `"enabled": true`).
+
+### File structure for cloud
+
+```
+docs/
+├── index.html   # Cloud frontend — polls games.json every 30s
+└── games.json   # Scraped data — auto-updated by GitHub Actions
+
+config/
+└── alerts.json  # Email alert rules — edit this file to add/change rules
+
+scraper.js       # Standalone Node.js scraper — run by GitHub Actions
+.github/
+└── workflows/
+    └── scrape.yml  # Cron job definition
+```
+
+### Differences from the local version
+
+| Feature | Local (`server.js`) | Cloud (GitHub Pages) |
+|---|---|---|
+| Updates | Real-time via SSE | Polling every 30 seconds |
+| Email alert rules | Configured in the 🔔 Alerts UI panel | Edit `config/alerts.json` in GitHub |
+| Force refresh | ↻ Refresh button | Trigger via Actions → Run workflow |
+| Scrape interval | 5 minutes (configurable) | 10 minutes (GitHub cron minimum) |
+
+---
+
 ## How It Works
 
 ```

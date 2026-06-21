@@ -1,0 +1,16 @@
+{
+  "rules": [
+    {
+      "id": "example-1",
+      "label": "Beacon Advanced Friday nights",
+      "enabled": false,
+      "filters": {
+        "gym":        ["Beacon"],
+        "date":       [],
+        "time":       ["7:00 pm"],
+        "difficulty": ["Advanced"],
+        "court":      []
+      }
+    }
+  ]
+}
