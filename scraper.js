@@ -172,6 +172,19 @@ async function main() {
   const resendKey  = process.env.RESEND_KEY  || '';
   const alertEmail = process.env.ALERT_EMAIL || '';
 
+  // Test-email mode: send a delivery check and exit without scraping
+  if (process.argv.includes('--test-email') || process.env.TEST_EMAIL === 'true') {
+    console.log('[test-email] Sending test email…');
+    await sendEmail(
+      '🏐 NYUrban Alert — test email',
+      `This is a test from the NYUrban Volleyball Tracker.\n\nIf you received this, email delivery is working correctly.\n\nTracker: ${PAGE_URL}`,
+      alertEmail,
+      resendKey
+    );
+    console.log('[test-email] Done.');
+    return;
+  }
+
   // Load previous game state to detect newly-available spots
   let prevData = { games: [] };
   try { if (fs.existsSync(dataFile)) prevData = JSON.parse(fs.readFileSync(dataFile, 'utf8')); } catch (_) {}
