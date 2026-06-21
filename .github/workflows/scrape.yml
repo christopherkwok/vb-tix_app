@@ -3,7 +3,12 @@ name: Scrape NYUrban
 on:
   schedule:
     - cron: '*/10 * * * *'   # every 10 minutes
-  workflow_dispatch:           # allow manual trigger from GitHub Actions UI
+  workflow_dispatch:
+    inputs:
+      test_email:
+        description: 'Send a test email and skip scraping (true/false)'
+        required: false
+        default: 'false'
 
 permissions:
   contents: write
@@ -28,6 +33,7 @@ jobs:
         env:
           RESEND_KEY:  ${{ secrets.RESEND_KEY }}
           ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+          TEST_EMAIL:  ${{ github.event.inputs.test_email }}
 
       - name: Commit updated game data via PR
         run: |
