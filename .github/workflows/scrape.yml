@@ -1,8 +1,6 @@
 name: Scrape NYUrban
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'   # every 10 minutes
   workflow_dispatch:
     inputs:
       test_email:
