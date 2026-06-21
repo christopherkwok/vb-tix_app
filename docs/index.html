@@ -344,6 +344,7 @@
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">Connecting…</span>
       </div>
+      <button class="btn btn-outline btn-sm" onclick="openAlertsPanel()">🔔 Alerts</button>
       <a class="btn btn-primary btn-sm" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank" rel="noopener">Register ↗</a>
     </div>
   </div>
@@ -479,6 +480,113 @@
 </main>
 
 <div id="toast-container"></div>
+
+<!-- ── Alerts panel ────────────────────────────────────────────────────────── -->
+<div class="panel-overlay" id="alerts-panel" onclick="if(event.target===this)closeAlertsPanel()">
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">🔔 Email Alerts</span>
+      <button class="panel-close" onclick="closeAlertsPanel()">✕</button>
+    </div>
+    <div class="panel-body">
+
+      <!-- GitHub connection -->
+      <div class="panel-section">
+        <div class="panel-section-title">GitHub connection</div>
+        <div class="field-row">
+          <div class="field-group">
+            <label>Repository <span style="font-weight:400;color:var(--gray400)">(owner/repo)</span></label>
+            <input class="field-input" id="gh-repo" placeholder="christopherkwok/vb-tix_app" oninput="savePanelCreds()">
+          </div>
+          <div class="field-group">
+            <label>Personal Access Token</label>
+            <input class="field-input" id="gh-pat" type="password" placeholder="github_pat_…" oninput="savePanelCreds()">
+          </div>
+        </div>
+        <p style="font-size:.77rem;color:var(--gray500);line-height:1.5;margin:0">
+          Fine-grained PAT with <strong>Contents: Read and write</strong> on this repo only. Stored only in your browser.
+          <a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener" style="color:var(--court)">Create token →</a>
+        </p>
+        <button class="btn btn-ghost btn-sm" onclick="loadRulesFromGitHub()" style="align-self:flex-start">↻ Load rules from GitHub</button>
+      </div>
+
+      <hr class="panel-divider">
+
+      <!-- Alert rules list -->
+      <div class="panel-section">
+        <div class="panel-section-title">Alert rules</div>
+        <p style="font-size:.78rem;color:var(--gray500);margin:0">An email is sent when a session becomes newly available and matches <em>all</em> set filters. Empty filters match anything.</p>
+        <div class="rules-list" id="rules-list">
+          <div style="font-size:.82rem;color:var(--gray500);font-style:italic">Enter credentials above, then click "Load rules from GitHub".</div>
+        </div>
+
+        <!-- Add / Edit rule form -->
+        <div class="add-rule-form" id="rule-form">
+          <div style="font-size:.83rem;font-weight:600;color:var(--gray700)" id="rule-form-title">New rule</div>
+          <div class="field-group">
+            <label>Rule name</label>
+            <input class="field-input" id="new-rule-label" placeholder="e.g. Lag Intermediate Friday nights">
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label>Gym <span style="font-weight:400;color:var(--gray400)">(partial match)</span></label>
+              <button class="dd-trigger" id="rule-dd-trigger-gym" onclick="toggleRuleDropdown('gym')">
+                <span id="rule-dd-label-gym">Any gym</span><span class="dd-caret">▼</span>
+              </button>
+              <div class="rule-dd-list" id="rule-dd-list-gym"></div>
+            </div>
+            <div class="field-group">
+              <label>Time <span style="font-weight:400;color:var(--gray400)">(partial match)</span></label>
+              <button class="dd-trigger" id="rule-dd-trigger-time" onclick="toggleRuleDropdown('time')">
+                <span id="rule-dd-label-time">Any time</span><span class="dd-caret">▼</span>
+              </button>
+              <div class="rule-dd-list" id="rule-dd-list-time"></div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label>Difficulty <span style="font-weight:400;color:var(--gray400)">(exact match)</span></label>
+              <button class="dd-trigger" id="rule-dd-trigger-difficulty" onclick="toggleRuleDropdown('difficulty')">
+                <span id="rule-dd-label-difficulty">Any difficulty</span><span class="dd-caret">▼</span>
+              </button>
+              <div class="rule-dd-list" id="rule-dd-list-difficulty"></div>
+            </div>
+            <div class="field-group">
+              <label>Court <span style="font-weight:400;color:var(--gray400)">(exact match)</span></label>
+              <button class="dd-trigger" id="rule-dd-trigger-court" onclick="toggleRuleDropdown('court')">
+                <span id="rule-dd-label-court">Any court</span><span class="dd-caret">▼</span>
+              </button>
+              <div class="rule-dd-list" id="rule-dd-list-court"></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <label class="rule-toggle">
+              <input type="checkbox" id="new-rule-enabled" checked>
+              <span class="rule-toggle-slider"></span>
+            </label>
+            <span style="font-size:.83rem">Enabled</span>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-primary btn-sm" id="rule-form-submit" onclick="submitRuleForm()">Add rule</button>
+            <button class="btn btn-ghost btn-sm" onclick="hideRuleForm()">Cancel</button>
+          </div>
+        </div>
+
+        <button class="btn btn-ghost btn-sm" id="add-rule-btn" onclick="showAddRuleForm()" style="align-self:flex-start">+ Add rule</button>
+      </div>
+
+      <hr class="panel-divider">
+
+      <div>
+        <button class="btn btn-primary" id="save-rules-btn" onclick="saveRulesToGitHub()">Save to GitHub</button>
+        <p style="font-size:.77rem;color:var(--gray500);margin-top:.5rem">
+          Commits <code style="font-size:.77rem;background:var(--gray100);padding:.1rem .3rem;border-radius:3px">config/alerts.json</code> to your repo. Rules apply on the next scraper run (within 10 min).
+        </p>
+      </div>
+
+    </div>
+  </div>
+</div>
 
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
@@ -658,6 +766,7 @@ function closeAllDropdowns() {
 // Close on outside click
 document.addEventListener('click', e => {
   if (openDropdown && !e.target.closest('.filter-select-wrap')) closeAllDropdowns();
+  if (!e.target.closest('#rule-form .field-group')) closeRuleDropdowns();
 });
 
 function renderDropdown(key, values) {
@@ -937,6 +1046,229 @@ function fetchGames() {
     });
 }
 
+
+// ── Alerts Panel ──────────────────────────────────────────────────────────────
+let alertRules     = [];
+let editingRuleIdx = -1;
+let ruleFormFilters = { gym: new Set(), time: new Set(), difficulty: new Set(), court: new Set() };
+
+function deriveRepo() {
+  const owner = window.location.hostname.replace(/\.github\.io$/, '');
+  const repo  = window.location.pathname.split('/').filter(Boolean)[0] || '';
+  return (owner && repo) ? owner + '/' + repo : '';
+}
+
+function openAlertsPanel() {
+  document.getElementById('alerts-panel').classList.add('open');
+  const repoEl = document.getElementById('gh-repo');
+  const patEl  = document.getElementById('gh-pat');
+  if (!repoEl.value) repoEl.value = localStorage.getItem('gh_repo') || deriveRepo();
+  if (!patEl.value)  patEl.value  = localStorage.getItem('gh_pat')  || '';
+  if (repoEl.value && patEl.value) loadRulesFromGitHub();
+}
+
+function closeAlertsPanel() {
+  document.getElementById('alerts-panel').classList.remove('open');
+  hideRuleForm();
+}
+
+function savePanelCreds() {
+  const repo = document.getElementById('gh-repo').value.trim();
+  const pat  = document.getElementById('gh-pat').value.trim();
+  if (repo) localStorage.setItem('gh_repo', repo);
+  if (pat)  localStorage.setItem('gh_pat',  pat);
+}
+
+async function loadRulesFromGitHub() {
+  savePanelCreds();
+  const pat  = document.getElementById('gh-pat').value.trim();
+  const repo = document.getElementById('gh-repo').value.trim();
+  const list = document.getElementById('rules-list');
+  if (!pat || !repo) {
+    list.innerHTML = '<div style="font-size:.82rem;color:var(--warn)">Enter repo and token above, then click Load.</div>';
+    return;
+  }
+  list.innerHTML = '<div style="font-size:.82rem;color:var(--gray500)">Loading…</div>';
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/contents/config/alerts.json`, {
+      headers: { 'Authorization': `Bearer ${pat}`, 'Accept': 'application/vnd.github+json' }
+    });
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+    const data   = await res.json();
+    const parsed = JSON.parse(decodeURIComponent(escape(atob(data.content.replace(/\n/g, '')))));
+    alertRules   = parsed.rules || [];
+    renderRulesList(alertRules);
+  } catch(e) {
+    list.innerHTML = `<div style="font-size:.82rem;color:var(--full)">Failed to load: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderRulesList(rules) {
+  const container = document.getElementById('rules-list');
+  if (!rules.length) {
+    container.innerHTML = '<div style="font-size:.82rem;color:var(--gray500);font-style:italic">No rules yet — add one below.</div>';
+    return;
+  }
+  container.innerHTML = rules.map((rule, i) => {
+    const tags = Object.entries(rule.filters || {})
+      .filter(([, v]) => v && v.length)
+      .map(([k, v]) => `<span class="rule-filter-tag active">${esc(k)}: ${v.map(esc).join(', ')}</span>`)
+      .join('');
+    return `
+    <div class="rule-card">
+      <div class="rule-card-header">
+        <label class="rule-toggle">
+          <input type="checkbox" ${rule.enabled !== false ? 'checked' : ''} onchange="alertRules[${i}].enabled=this.checked">
+          <span class="rule-toggle-slider"></span>
+        </label>
+        <span class="rule-label">${esc(rule.label || 'Unnamed rule')}</span>
+        <button class="btn btn-ghost btn-sm" onclick="editRule(${i})" style="padding:.2rem .45rem;font-size:.75rem;flex-shrink:0">Edit</button>
+        <button class="rule-delete" onclick="deleteRule(${i})" title="Delete">🗑</button>
+      </div>
+      <div class="rule-filters">${tags || '<span style="font-size:.72rem;color:var(--gray400);font-style:italic">No filters set — matches all sessions</span>'}</div>
+    </div>`;
+  }).join('');
+}
+
+function deleteRule(idx) {
+  alertRules.splice(idx, 1);
+  renderRulesList(alertRules);
+}
+
+function showAddRuleForm() {
+  editingRuleIdx  = -1;
+  ruleFormFilters = { gym: new Set(), time: new Set(), difficulty: new Set(), court: new Set() };
+  document.getElementById('new-rule-label').value    = '';
+  document.getElementById('new-rule-enabled').checked = true;
+  document.getElementById('rule-form-title').textContent   = 'New rule';
+  document.getElementById('rule-form-submit').textContent  = 'Add rule';
+  populateRuleFormDropdowns();
+  document.getElementById('rule-form').classList.add('open');
+  document.getElementById('add-rule-btn').style.display = 'none';
+}
+
+function editRule(idx) {
+  const rule = alertRules[idx];
+  editingRuleIdx  = idx;
+  ruleFormFilters = {
+    gym:        new Set(rule.filters?.gym        || []),
+    time:       new Set(rule.filters?.time       || []),
+    difficulty: new Set(rule.filters?.difficulty || []),
+    court:      new Set(rule.filters?.court      || []),
+  };
+  document.getElementById('new-rule-label').value     = rule.label || '';
+  document.getElementById('new-rule-enabled').checked = rule.enabled !== false;
+  document.getElementById('rule-form-title').textContent  = 'Edit rule';
+  document.getElementById('rule-form-submit').textContent = 'Update rule';
+  populateRuleFormDropdowns();
+  document.getElementById('rule-form').classList.add('open');
+  document.getElementById('add-rule-btn').style.display = 'none';
+}
+
+function hideRuleForm() {
+  document.getElementById('rule-form').classList.remove('open');
+  document.getElementById('add-rule-btn').style.display = '';
+  editingRuleIdx = -1;
+  closeRuleDropdowns();
+}
+
+function populateRuleFormDropdowns() {
+  const OPTIONS = {
+    gym:        [...new Set(allGames.map(g => g.gym).filter(Boolean))].sort(),
+    time:       sortTimes([...new Set(allGames.map(g => normalizeTime(g.time)).filter(Boolean))]),
+    difficulty: [...new Set(allGames.map(g => g.difficulty).filter(Boolean))].sort(),
+    court:      [...new Set(allGames.map(g => g.court).filter(Boolean))].sort((a, b) => a === 'N/A' ? 1 : b === 'N/A' ? -1 : a.localeCompare(b, undefined, { numeric: true })),
+  };
+  for (const [field, values] of Object.entries(OPTIONS)) {
+    const selected = ruleFormFilters[field];
+    const list = document.getElementById(`rule-dd-list-${field}`);
+    if (!list) continue;
+    list.innerHTML = values.length
+      ? values.map(v => `<label class="dd-item"><input type="checkbox" value="${esc(v)}" ${selected.has(v) ? 'checked' : ''} onchange="toggleRuleFilter('${field}',this.value,this.checked)"><span>${esc(v)}</span></label>`).join('')
+      : '<div class="dd-empty">No options — game data not loaded yet</div>';
+    updateRuleTriggerLabel(field);
+  }
+}
+
+function toggleRuleFilter(field, value, checked) {
+  if (checked) ruleFormFilters[field].add(value); else ruleFormFilters[field].delete(value);
+  updateRuleTriggerLabel(field);
+}
+
+function updateRuleTriggerLabel(field) {
+  const set     = ruleFormFilters[field];
+  const trigger = document.getElementById(`rule-dd-trigger-${field}`);
+  const label   = document.getElementById(`rule-dd-label-${field}`);
+  const ph = { gym: 'Any gym', time: 'Any time', difficulty: 'Any difficulty', court: 'Any court' };
+  if (!trigger || !label) return;
+  const n = set.size;
+  if (n === 0)      { label.textContent = ph[field]; trigger.classList.remove('has-selection'); }
+  else if (n === 1) { label.textContent = [...set][0]; trigger.classList.add('has-selection'); }
+  else              { label.textContent = `${n} selected`; trigger.classList.add('has-selection'); }
+}
+
+function closeRuleDropdowns() {
+  ['gym', 'time', 'difficulty', 'court'].forEach(f => {
+    document.getElementById(`rule-dd-list-${f}`)?.classList.remove('open');
+    document.getElementById(`rule-dd-trigger-${f}`)?.classList.remove('open');
+  });
+}
+
+function toggleRuleDropdown(field) {
+  const list    = document.getElementById(`rule-dd-list-${field}`);
+  const trigger = document.getElementById(`rule-dd-trigger-${field}`);
+  const isOpen  = list.classList.contains('open');
+  closeRuleDropdowns();
+  if (!isOpen) { list.classList.add('open'); trigger.classList.add('open'); }
+}
+
+function submitRuleForm() {
+  const label = document.getElementById('new-rule-label').value.trim();
+  if (!label) { toast('Enter a name for this rule', 'warn'); return; }
+  const rule = {
+    id:      editingRuleIdx >= 0 ? alertRules[editingRuleIdx].id : 'rule-' + Date.now(),
+    label,
+    enabled: document.getElementById('new-rule-enabled').checked,
+    filters: {
+      gym:        [...ruleFormFilters.gym],
+      date:       editingRuleIdx >= 0 ? (alertRules[editingRuleIdx].filters?.date || []) : [],
+      time:       [...ruleFormFilters.time],
+      difficulty: [...ruleFormFilters.difficulty],
+      court:      [...ruleFormFilters.court],
+    },
+  };
+  if (editingRuleIdx >= 0) alertRules[editingRuleIdx] = rule; else alertRules.push(rule);
+  renderRulesList(alertRules);
+  hideRuleForm();
+}
+
+async function saveRulesToGitHub() {
+  savePanelCreds();
+  const pat  = document.getElementById('gh-pat').value.trim();
+  const repo = document.getElementById('gh-repo').value.trim();
+  if (!pat || !repo) { toast('Enter GitHub repo and token first', 'error'); return; }
+  const btn = document.getElementById('save-rules-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const getRes = await fetch(`https://api.github.com/repos/${repo}/contents/config/alerts.json`, {
+      headers: { 'Authorization': `Bearer ${pat}`, 'Accept': 'application/vnd.github+json' }
+    });
+    if (!getRes.ok) throw new Error(`Read failed (${getRes.status})`);
+    const current = await getRes.json();
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify({ rules: alertRules }, null, 2))));
+    const putRes  = await fetch(`https://api.github.com/repos/${repo}/contents/config/alerts.json`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${pat}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json' },
+      body: JSON.stringify({ message: 'chore: update alert rules', content, sha: current.sha }),
+    });
+    if (!putRes.ok) { const e = await putRes.json(); throw new Error(e.message || putRes.status); }
+    toast('✓ Alert rules saved to GitHub!', 'success');
+  } catch(e) {
+    toast('Save failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save to GitHub';
+  }
+}
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
 checkNotifPermission();
