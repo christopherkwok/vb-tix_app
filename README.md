@@ -1,6 +1,6 @@
-# 🏐 NYUrban Volleyball Ticket Tracker
+# 🏐 Volleyball Ticket Tracker
 
-A lightweight, **zero-dependency** Node.js app that scrapes [NYUrban's open play schedule](https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1) every 5 minutes and shows ticket availability in a live-updating UI.
+A lightweight, **zero-dependency** Node.js app that scrapes the [open play schedule](https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1) every 5 minutes and shows ticket availability in a live-updating UI.
 
 ---
 
@@ -120,7 +120,7 @@ scraper.js       # Standalone Node.js scraper — run by GitHub Actions
 ## How It Works
 
 ```
-Browser (SSE) ←──── Node.js server (port 3333) ────→ nyurban.com
+Browser (SSE) ←──── Node.js server (port 3333) ────→ venue site
      ↓                        ↓
 Live UI update        AJAX POST every 5 min
                       action=my_open_play_contentbb
@@ -262,7 +262,7 @@ Matching rules per field:
 
 ## Debug Scripts
 
-The `debug/` folder contains three one-shot scripts for diagnosing issues with the NYUrban AJAX endpoint. Run them manually when the scraper breaks:
+The `debug/` folder contains three one-shot scripts for diagnosing issues with the AJAX endpoint. Run them manually when the scraper breaks:
 
 ```bash
 # Step 1 — fetch main page, test AJAX action names
@@ -329,7 +329,7 @@ Install the textbee app on an Android phone, then:
 
 ```js
 async function sendSMSAlert(games) {
-  const msg = `🏐 ${games.length} NYUrban spot(s) open: ${games.map(g => g.venueLabel + ' ' + g.date).join(', ')}`;
+  const msg = `🏐 ${games.length} spot(s) open: ${games.map(g => g.venueLabel + ' ' + g.date).join(', ')}`;
   const body = JSON.stringify({ recipients: ['+1YOURNUMBER'], message: msg });
   // POST to textbee API — see textbee.dev for your device_id and API key
 }
@@ -348,7 +348,7 @@ Just send a regular email to that address using the Gmail/Resend setup above.
 
 | Problem | Fix |
 |---|---|
-| "No sessions found" | All venues currently show "No Open Session" — check nyurban.com directly |
+| "No sessions found" | All venues currently show "No Open Session" — check the site directly |
 | Server errors on startup | Make sure Node v16+ is installed: `node --version` |
 | Blank browser page | Check PowerShell — the server may have crashed, restart with `node server.js` |
 | Notifications not showing | Click "Enable Notifications" in the UI, then allow in browser settings |
