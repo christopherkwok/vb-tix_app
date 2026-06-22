@@ -101,7 +101,7 @@
       "court": "N/A",
       "time": "7:30 pm - 10:00 pm",
       "fee": "16.00",
-      "spots": "3 Spaces",
+      "spots": "1 Space",
       "available": true,
       "link": "https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1"
     },
@@ -221,8 +221,8 @@
       "court": "N/A",
       "time": "7:30 pm - 10:00 pm",
       "fee": "16.00",
-      "spots": "2 Spaces",
-      "available": true,
+      "spots": "Sold Out",
+      "available": false,
       "link": "https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1"
     },
     {
@@ -1231,6 +1231,6 @@
       "link": "https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1"
     }
   ],
-  "lastScrape": "2026-06-22T21:25:20.179Z",
+  "lastScrape": "2026-06-22T21:30:28.541Z",
   "errors": {}
 }
