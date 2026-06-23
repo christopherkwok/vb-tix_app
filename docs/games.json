@@ -251,8 +251,8 @@
       "court": "Court 1",
       "time": "8:15 pm - 10:35 pm",
       "fee": "13.00",
-      "spots": "1 Space",
-      "available": true,
+      "spots": "Sold Out",
+      "available": false,
       "link": "https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1"
     },
     {
@@ -1231,6 +1231,6 @@
       "link": "https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1"
     }
   ],
-  "lastScrape": "2026-06-23T19:00:36.932Z",
+  "lastScrape": "2026-06-23T19:05:26.398Z",
   "errors": {}
 }
