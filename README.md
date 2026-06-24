@@ -142,7 +142,34 @@ Your live URL: `https://YOUR_USERNAME.github.io/vb-tix_app/`
 **7. Enable GitHub Actions**  
 Repo → Actions tab → click "I understand my workflows, go ahead and enable them."
 
-**8. Add GitHub repository secrets**  
+**8. Set up reliable cron via cron-job.org**
+
+GitHub's built-in cron is often delayed 15–30 min or skipped. Instead, use [cron-job.org](https://cron-job.org) (free, no CC) to trigger the workflow on a reliable schedule.
+
+First, create a GitHub Personal Access Token (PAT):  
+GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token  
+Scopes: check **`workflow`** only. Copy the token.
+
+Then in cron-job.org → **Create cronjob**:
+
+| Field | Value |
+|---|---|
+| URL | `https://api.github.com/repos/christopherkwok/vb-tix_app/actions/workflows/scrape.yml/dispatches` |
+| Execution schedule | Every 10 minutes |
+| Request method | `POST` |
+| Request body | `{"ref":"main"}` |
+
+Under **Headers**, add:
+```
+Authorization: Bearer YOUR_GITHUB_PAT
+Accept: application/vnd.github+json
+Content-Type: application/json
+X-GitHub-Api-Version: 2022-11-28
+```
+
+A successful trigger returns HTTP 204. cron-job.org shows the response code in its job history so you can confirm it's working.
+
+**9. Add GitHub repository secrets**  
 Repo → Settings → Secrets and variables → Actions → New repository secret:
 
 | Secret name | Value |
