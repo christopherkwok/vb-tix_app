@@ -42,9 +42,15 @@ Press **Ctrl + C** to stop.
 
 ---
 
+## Live Tracker
+
+**https://christopherkwok.github.io/vb-tix_app/**
+
+---
+
 ## Cloud Deployment (Free, No Credit Card)
 
-Host the tracker permanently using **GitHub Actions** (scraper cron) + **GitHub Pages** (frontend). Both are completely free for public repos with no credit card required.
+Host the tracker permanently using **GitHub Actions** (scraper cron) + **GitHub Pages** (frontend) + **Supabase** (database + auth). All free tiers, no credit card required.
 
 ### How it works
 
@@ -52,68 +58,133 @@ Host the tracker permanently using **GitHub Actions** (scraper cron) + **GitHub 
 GitHub Actions (every 10 min)
     → node scraper.js
     → scrapes all 5 venues
-    → sends email alerts via Resend if new spots matched rules
-    → commits docs/games.json to the repo
+    → upserts game data to Supabase (scrape_results table)
+    → reads per-user alert rules from Supabase (alert_rules table)
+    → sends email alerts via Resend to each user whose rules matched
 
 GitHub Pages
     → serves docs/index.html (your dashboard)
-    → serves docs/games.json (the data, fetched by the browser every 30s)
+    → users sign in with magic link (email → one-time link, no password)
+    → frontend queries Supabase directly for game data and alert rules
 ```
 
 ### Setup
 
-**1. Push to a public GitHub repository**
+**1. Create a Supabase project**
+
+Sign up at [supabase.com](https://supabase.com) (free, no CC). Create a new project, then run this SQL in the **SQL Editor** tab:
+
+```sql
+-- Game data table (one row, updated each scrape)
+create table public.scrape_results (
+  id int primary key default 1,
+  games jsonb not null default '[]',
+  last_scrape timestamptz,
+  errors jsonb not null default '{}'
+);
+insert into public.scrape_results (id) values (1) on conflict do nothing;
+alter table public.scrape_results enable row level security;
+create policy "auth_read" on public.scrape_results
+  for select to authenticated using (true);
+
+-- Per-user alert rules
+create table public.alert_rules (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  user_email text not null,
+  label text not null,
+  enabled boolean not null default true,
+  filters jsonb not null default '{}',
+  created_at timestamptz default now()
+);
+alter table public.alert_rules enable row level security;
+create policy "user_owns_rules" on public.alert_rules
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+```
+
+**2. Disable public sign-ups (invite-only access)**
+
+In your Supabase dashboard → **Authentication → Providers → Email** → uncheck **"Enable email confirmations"** (or leave on for extra security) → go to **Authentication → Settings** → toggle off **"Enable sign-ups"**. Save.
+
+To invite a user: **Authentication → Users → Invite user** (enter their email). They receive a magic link; no password needed.
+
+**3. Add your site URL to the redirect allow-list**
+
+In Supabase dashboard → **Authentication → URL Configuration** → add your GitHub Pages URL to **Redirect URLs**:
+```
+https://YOUR_USERNAME.github.io/vb-tix_app/
+```
+
+**4. Add your Supabase keys to `docs/index.html`**
+
+Find these two lines near the top of the `<script>` block and replace the placeholders:
+```js
+const SUPABASE_URL      = 'YOUR_SUPABASE_URL';       // e.g. https://abcdef.supabase.co
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';  // Project Settings → API → anon public
+```
+
+**5. Push to a public GitHub repository**
 ```bash
 git init
 git add .
 git commit -m "init"
-git remote add origin https://github.com/YOUR_USERNAME/vb-tix-tracker.git
+git remote add origin https://github.com/YOUR_USERNAME/vb-tix_app.git
 git push -u origin main
 ```
 
-**2. Enable GitHub Pages**  
-Go to your repo → Settings → Pages → Source: **Deploy from a branch** → Branch: `main` / Folder: `/docs` → Save.
+**6. Enable GitHub Pages**  
+Repo → Settings → Pages → Source: **Deploy from a branch** → Branch: `main` / Folder: `/docs` → Save.
 
-Your live URL will be `https://YOUR_USERNAME.github.io/vb-tix-tracker/`
+Your live URL: `https://YOUR_USERNAME.github.io/vb-tix_app/`
 
-**3. Enable GitHub Actions**  
-Go to your repo → Actions tab → click "I understand my workflows, go ahead and enable them."  
-The scraper runs automatically every 10 minutes and commits fresh data.
+**7. Enable GitHub Actions**  
+Repo → Actions tab → click "I understand my workflows, go ahead and enable them."
 
-**4. Configure email alerts (optional)**  
-Go to your repo → Settings → Secrets and variables → Actions → New repository secret:
+**8. Add GitHub repository secrets**  
+Repo → Settings → Secrets and variables → Actions → New repository secret:
 
 | Secret name | Value |
 |---|---|
-| `RESEND_KEY` | Your Resend API key (free at [resend.com](https://resend.com), no CC required) |
-| `ALERT_EMAIL` | The address that receives alert emails |
+| `SUPABASE_URL` | Your Supabase project URL (e.g. `https://abcdef.supabase.co`) |
+| `SUPABASE_SERVICE_KEY` | Project Settings → API → **service_role** key (keep secret!) |
+| `RESEND_KEY` | Your Resend API key (free at [resend.com](https://resend.com), no CC) |
 
-Edit `config/alerts.json` in your repo to add your alert rules (set `"enabled": true`).
+> `ALERT_EMAIL` is no longer needed — each user's rules send to their own email address.
 
 ### File structure for cloud
 
 ```
 docs/
-├── index.html   # Cloud frontend — polls games.json every 30s
-└── games.json   # Scraped data — auto-updated by GitHub Actions
+└── index.html      # Cloud frontend — Supabase auth + live game data
 
-config/
-└── alerts.json  # Email alert rules — edit this file to add/change rules
-
-scraper.js       # Standalone Node.js scraper — run by GitHub Actions
+scraper.js          # Standalone Node.js scraper — writes to Supabase
 .github/
 └── workflows/
-    └── scrape.yml  # Cron job definition
+    └── scrape.yml  # Cron job (every 10 min) + Supabase secrets
 ```
 
 ### Differences from the local version
 
-| Feature | Local (`server.js`) | Cloud (GitHub Pages) |
+| Feature | Local (`server.js`) | Cloud (GitHub Pages + Supabase) |
 |---|---|---|
-| Updates | Real-time via SSE | Polling every 30 seconds |
-| Email alert rules | Configured in the 🔔 Alerts UI panel | Edit `config/alerts.json` in GitHub |
+| Updates | Real-time via SSE | Polling every 5 minutes |
+| Auth | None (local network) | Magic link email (no password) |
+| Alert rules | Configured in 🔔 Alerts panel, stored in `notifications.json` | Configured in 🔔 Alerts panel, stored per-user in Supabase |
+| Multiple users | Single shared config | Each user manages their own rules, alerts sent to their email |
 | Force refresh | ↻ Refresh button | Trigger via Actions → Run workflow |
 | Scrape interval | 5 minutes (configurable) | 10 minutes (GitHub cron minimum) |
+
+### Free tier limits (Supabase)
+
+| Resource | Free limit | This app's usage |
+|---|---|---|
+| Monthly active users | 50,000 | Negligible |
+| Database | 500 MB | ~1 MB (game data is tiny) |
+| Auth emails | 4/hour (magic links) | Fine for a small group |
+| API requests | No hard cap | Polling 5 min = ~300/day/user |
+| Project pausing | After 7 days inactivity | Won't happen — cron keeps it active |
 
 ---
 

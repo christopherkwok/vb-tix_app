@@ -165,8 +165,39 @@ function sendEmail(subject, body, to, resendKey) {
   });
 }
 
+// ── Supabase REST helper (zero-dep, service-role key) ─────────────────────────
+function supabaseRequest(method, path, body, extraHeaders = {}) {
+  return new Promise((resolve, reject) => {
+    const url     = new URL(process.env.SUPABASE_URL);
+    const payload = body ? JSON.stringify(body) : null;
+    const headers = {
+      'apikey'       : process.env.SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
+      'Content-Type' : 'application/json',
+      ...extraHeaders,
+    };
+    if (payload) headers['Content-Length'] = Buffer.byteLength(payload);
+    const req = https.request({
+      hostname: url.hostname,
+      path    : '/rest/v1' + path,
+      method,
+      headers,
+    }, res => {
+      let d = ''; res.on('data', c => d += c);
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, data: d ? JSON.parse(d) : null }); }
+        catch (_) { resolve({ status: res.statusCode, data: d }); }
+      });
+    });
+    req.on('error', reject);
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────────
 async function main() {
+  const useSupabase = !!process.env.SUPABASE_URL;
   const dataFile   = path.join(__dirname, 'docs', 'games.json');
   const rulesFile  = path.join(__dirname, 'config', 'alerts.json');
   const resendKey  = process.env.RESEND_KEY  || '';
@@ -186,13 +217,25 @@ async function main() {
   }
 
   // Load previous game state to detect newly-available spots
-  let prevData = { games: [] };
-  try { if (fs.existsSync(dataFile)) prevData = JSON.parse(fs.readFileSync(dataFile, 'utf8')); } catch (_) {}
-  const prevAvailIds = new Set((prevData.games || []).filter(g => g.available).map(g => g.id));
+  let prevAvailIds = new Set();
+  if (useSupabase) {
+    const { data } = await supabaseRequest('GET', '/scrape_results?id=eq.1&select=games');
+    const prevGames = (data && data[0] && data[0].games) || [];
+    prevAvailIds = new Set(prevGames.filter(g => g.available).map(g => g.id));
+  } else {
+    let prevData = { games: [] };
+    try { if (fs.existsSync(dataFile)) prevData = JSON.parse(fs.readFileSync(dataFile, 'utf8')); } catch (_) {}
+    prevAvailIds = new Set((prevData.games || []).filter(g => g.available).map(g => g.id));
+  }
 
   // Load alert rules
   let rules = [];
-  try { if (fs.existsSync(rulesFile)) ({ rules } = JSON.parse(fs.readFileSync(rulesFile, 'utf8'))); } catch (_) {}
+  if (useSupabase) {
+    const { data } = await supabaseRequest('GET', '/alert_rules?enabled=eq.true&select=*');
+    rules = data || [];
+  } else {
+    try { if (fs.existsSync(rulesFile)) ({ rules } = JSON.parse(fs.readFileSync(rulesFile, 'utf8'))); } catch (_) {}
+  }
 
   // Scrape all venues
   console.log(`[${new Date().toISOString()}] Scraping all venues…`);
@@ -214,7 +257,7 @@ async function main() {
   const open = allGames.filter(g => g.available).length;
   console.log(`  → ${allGames.length} sessions, ${open} available`);
 
-  // Detect newly-available sessions
+  // Detect newly-available sessions and send per-user alerts
   const newlyAvail = allGames.filter(g => g.available && !prevAvailIds.has(g.id));
   if (newlyAvail.length > 0) {
     console.log(`  🎉 ${newlyAvail.length} newly available!`);
@@ -226,15 +269,26 @@ async function main() {
       ).join('\n');
       const subject = `🏐 [${rule.label}] ${matched.length} spot${matched.length > 1 ? 's' : ''} just opened!`;
       const body    = `Your alert "${rule.label}" matched ${matched.length} newly available session${matched.length > 1 ? 's' : ''}:\n\n${lines}\n\nRegister now: ${PAGE_URL}`;
-      console.log(`  📧 Emailing "${rule.label}" → ${matched.length} match(es)`);
-      await sendEmail(subject, body, alertEmail, resendKey);
+      // Per-user email when using Supabase; fall back to global ALERT_EMAIL
+      const to = (useSupabase && rule.user_email) ? rule.user_email : alertEmail;
+      console.log(`  📧 Emailing "${rule.label}" → ${to} (${matched.length} match(es))`);
+      await sendEmail(subject, body, to, resendKey);
     }
   }
 
-  // Write updated data (docs/games.json is served by GitHub Pages)
-  fs.mkdirSync(path.join(__dirname, 'docs'), { recursive: true });
-  fs.writeFileSync(dataFile, JSON.stringify({ games: allGames, lastScrape: new Date().toISOString(), errors }, null, 2), 'utf8');
-  console.log(`  ✓ docs/games.json updated`);
+  // Write updated data
+  if (useSupabase) {
+    const { status } = await supabaseRequest(
+      'POST', '/scrape_results',
+      { id: 1, games: allGames, last_scrape: new Date().toISOString(), errors },
+      { 'Prefer': 'resolution=merge-duplicates' }
+    );
+    console.log(`  ✓ Supabase scrape_results updated (HTTP ${status})`);
+  } else {
+    fs.mkdirSync(path.join(__dirname, 'docs'), { recursive: true });
+    fs.writeFileSync(dataFile, JSON.stringify({ games: allGames, lastScrape: new Date().toISOString(), errors }, null, 2), 'utf8');
+    console.log(`  ✓ docs/games.json updated`);
+  }
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

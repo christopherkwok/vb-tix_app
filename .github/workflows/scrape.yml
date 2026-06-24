@@ -1,6 +1,8 @@
 name: Scrape NYUrban
 
 on:
+  schedule:
+    - cron: '*/10 * * * *'   # every 10 minutes (GitHub's effective minimum)
   workflow_dispatch:
     inputs:
       test_email:
@@ -29,11 +31,14 @@ jobs:
       - name: Run scraper
         run: node scraper.js
         env:
-          RESEND_KEY:  ${{ secrets.RESEND_KEY }}
-          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
-          TEST_EMAIL:  ${{ github.event.inputs.test_email }}
+          RESEND_KEY:          ${{ secrets.RESEND_KEY }}
+          ALERT_EMAIL:         ${{ secrets.ALERT_EMAIL }}
+          TEST_EMAIL:          ${{ github.event.inputs.test_email }}
+          SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-      - name: Commit updated game data via PR
+      - name: Commit updated game data (file-based mode only)
+        if: env.SUPABASE_URL == ''
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -49,4 +54,5 @@ jobs:
           gh pr create --title "chore: update games data" --body "" --base main --head "$BRANCH"
           gh pr merge "$BRANCH" --merge --delete-branch
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN:     ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Volleyball Ticket Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
 
@@ -327,7 +328,6 @@
   .btn-ghost:hover { border-color:var(--gray500); }
   .btn-danger { background:#FEE2E2; border:none; color:var(--full); }
   .btn-danger:hover { background:#FECACA; }
-  .save-status { font-size:.8rem; color:var(--open); display:none; }
 
 </style>
 </head>
@@ -345,6 +345,7 @@
         <span id="status-text">Connecting…</span>
       </div>
       <button class="btn btn-outline btn-sm" onclick="openAlertsPanel()">🔔 Alerts</button>
+      <button class="btn btn-outline btn-sm" id="logout-btn" onclick="signOut()" style="display:none">Sign out</button>
       <a class="btn btn-primary btn-sm" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank" rel="noopener">Register ↗</a>
     </div>
   </div>
@@ -490,34 +491,18 @@
     </div>
     <div class="panel-body">
 
-      <!-- GitHub connection -->
-      <div class="panel-section">
-        <div class="panel-section-title">GitHub connection</div>
-        <div class="field-row">
-          <div class="field-group">
-            <label>Repository <span style="font-weight:400;color:var(--gray400)">(owner/repo)</span></label>
-            <input class="field-input" id="gh-repo" placeholder="christopherkwok/vb-tix_app" oninput="savePanelCreds()">
-          </div>
-          <div class="field-group">
-            <label>Personal Access Token</label>
-            <input class="field-input" id="gh-pat" type="password" placeholder="github_pat_…" oninput="savePanelCreds()">
-          </div>
-        </div>
-        <p style="font-size:.77rem;color:var(--gray500);line-height:1.5;margin:0">
-          Fine-grained PAT with <strong>Contents: Read and write</strong> on this repo only. Stored only in your browser.
-          <a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener" style="color:var(--court)">Create token →</a>
-        </p>
-        <button class="btn btn-ghost btn-sm" onclick="loadRulesFromGitHub()" style="align-self:flex-start">↻ Load rules from GitHub</button>
+      <!-- Signed-in user -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem .75rem;background:var(--gray50);border-radius:8px;font-size:.82rem">
+        <span style="color:var(--gray500)">Signed in as <strong id="panel-user-email" style="color:var(--gray700)"></strong></span>
+        <button class="btn btn-ghost btn-sm" onclick="signOut()" style="font-size:.78rem;padding:.2rem .55rem">Sign out</button>
       </div>
-
-      <hr class="panel-divider">
 
       <!-- Alert rules list -->
       <div class="panel-section">
         <div class="panel-section-title">Alert rules</div>
-        <p style="font-size:.78rem;color:var(--gray500);margin:0">An email is sent when a session becomes newly available and matches <em>all</em> set filters. Empty filters match anything.</p>
+        <p style="font-size:.78rem;color:var(--gray500);margin:0">An email is sent to you when a session becomes newly available and matches <em>all</em> set filters. Leave a filter blank to match anything.</p>
         <div class="rules-list" id="rules-list">
-          <div style="font-size:.82rem;color:var(--gray500);font-style:italic">Enter credentials above, then click "Load rules from GitHub".</div>
+          <div style="font-size:.82rem;color:var(--gray500);font-style:italic">Loading…</div>
         </div>
 
         <!-- Add / Edit rule form -->
@@ -575,35 +560,95 @@
         <button class="btn btn-ghost btn-sm" id="add-rule-btn" onclick="showAddRuleForm()" style="align-self:flex-start">+ Add rule</button>
       </div>
 
-      <hr class="panel-divider">
-
-      <div>
-        <button class="btn btn-primary" id="save-rules-btn" onclick="saveRulesToGitHub()">Save to GitHub</button>
-        <p style="font-size:.77rem;color:var(--gray500);margin-top:.5rem">
-          Commits <code style="font-size:.77rem;background:var(--gray100);padding:.1rem .3rem;border-radius:3px">config/alerts.json</code> to your repo. Rules apply on the next scraper run (within 10 min).
-        </p>
-      </div>
-
     </div>
   </div>
 </div>
 
-<script>
-// ── State ────────────────────────────────────────────────────────────────────
-let allGames       = [];
-let activeVenues   = new Set();  // empty = All Venues
-let activeFilter     = 'all';
-let activeDifficulties = new Set();   // multiselect
-let activeCourts       = new Set();   // multiselect
-let activeTimes        = new Set();   // multiselect
+<!-- ── Login overlay ──────────────────────────────────────────────────────────── -->
+<div id="login-overlay" style="position:fixed;inset:0;background:var(--sand);z-index:500;display:flex;align-items:center;justify-content:center;padding:1rem">
+  <div style="background:var(--white);border-radius:14px;padding:2rem;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.15)">
+    <div style="text-align:center;margin-bottom:1.5rem">
+      <div style="font-size:2.5rem;margin-bottom:.5rem">🏐</div>
+      <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.3rem;font-weight:700;color:var(--gray900);margin-bottom:.25rem">Volleyball Tracker</h1>
+      <p style="font-size:.85rem;color:var(--gray500)">Sign in to view sessions and manage alerts</p>
+    </div>
+    <div id="login-form">
+      <label style="font-size:.8rem;font-weight:500;color:var(--gray700);display:block;margin-bottom:.35rem">Email address</label>
+      <input class="field-input" id="login-email" type="email" placeholder="you@example.com"
+        style="width:100%;margin-bottom:.75rem" onkeydown="if(event.key==='Enter')signIn()">
+      <button class="btn btn-primary" onclick="signIn()" style="width:100%;justify-content:center" id="login-btn">Send sign-in link</button>
+    </div>
+    <div id="login-sent" style="display:none;text-align:center;padding:.5rem 0">
+      <div style="font-size:2rem;margin-bottom:.75rem">✉️</div>
+      <p style="font-size:.88rem;color:var(--gray700);line-height:1.6">Check your email for a sign-in link. It expires in 1 hour.</p>
+    </div>
+    <div id="login-error" style="display:none;margin-top:.75rem;padding:.5rem .75rem;background:#FEE2E2;border-radius:6px;font-size:.82rem;color:var(--full)"></div>
+  </div>
+</div>
 
-let notifGranted   = false;
+<script>
+// ── Supabase ──────────────────────────────────────────────────────────────────
+const SUPABASE_URL      = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let currentUser = null;
+let appStarted  = false;
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+sb.auth.onAuthStateChange((event, session) => {
+  currentUser = session?.user ?? null;
+  const overlay   = document.getElementById('login-overlay');
+  const logoutBtn = document.getElementById('logout-btn');
+  if (currentUser) {
+    overlay.style.display   = 'none';
+    logoutBtn.style.display = '';
+    if (!appStarted) { appStarted = true; checkNotifPermission(); fetchGames(); setInterval(fetchGames, 300000); }
+  } else {
+    overlay.style.display   = 'flex';
+    logoutBtn.style.display = 'none';
+    appStarted = false;
+  }
+});
+
+async function signIn() {
+  const email = document.getElementById('login-email').value.trim();
+  if (!email) return;
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.origin + window.location.pathname },
+  });
+  if (error) {
+    document.getElementById('login-error').textContent = error.message;
+    document.getElementById('login-error').style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Send sign-in link';
+  } else {
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('login-sent').style.display = 'block';
+  }
+}
+
+async function signOut() {
+  appStarted = false;
+  await sb.auth.signOut();
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let allGames           = [];
+let activeVenues       = new Set();
+let activeFilter       = 'all';
+let activeDifficulties = new Set();
+let activeCourts       = new Set();
+let activeTimes        = new Set();
+let notifGranted       = false;
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 function checkNotifPermission() {
   if (!('Notification' in window)) return;
-  if (Notification.permission === 'default')  document.getElementById('notif-cta').style.display = 'flex';
-  if (Notification.permission === 'granted')  notifGranted = true;
+  if (Notification.permission === 'default') document.getElementById('notif-cta').style.display = 'flex';
+  if (Notification.permission === 'granted') notifGranted = true;
 }
 function requestNotifications() {
   Notification.requestPermission().then(p => {
@@ -618,11 +663,8 @@ function sendNotification(title, body) {
 
 // ── Venue / filter ─────────────────────────────────────────────────────────────
 function setVenue(v) {
-  if (v === 'all') {
-    activeVenues.clear();
-  } else {
-    if (activeVenues.has(v)) activeVenues.delete(v); else activeVenues.add(v);
-  }
+  if (v === 'all') { activeVenues.clear(); }
+  else { if (activeVenues.has(v)) activeVenues.delete(v); else activeVenues.add(v); }
   document.querySelectorAll('.venue-tab').forEach(el => {
     const isAll = el.dataset.venue === 'all';
     el.classList.toggle('active', isAll ? activeVenues.size === 0 : activeVenues.has(el.dataset.venue));
@@ -634,17 +676,9 @@ function setFilter(f) {
   document.querySelectorAll('.filter-chip').forEach(el => el.classList.toggle('active', el.dataset.filter === f));
   renderGames();
 }
-function toggleMulti(set, value) {
-  if (set.has(value)) set.delete(value); else set.add(value);
-  updateClearBtn();
-  renderGames();
-}
 function clearFilters() {
-  activeDifficulties.clear();
-  activeCourts.clear();
-  activeTimes.clear();
-  updateClearBtn();
-  renderGames();
+  activeDifficulties.clear(); activeCourts.clear(); activeTimes.clear();
+  updateClearBtn(); renderGames();
 }
 function updateClearBtn() {
   document.getElementById('clear-btn').style.display =
@@ -652,7 +686,6 @@ function updateClearBtn() {
 }
 
 // ── Sorting ───────────────────────────────────────────────────────────────────
-// sortCriteria: [{key, dir}] — order = priority (first is primary sort)
 let sortCriteria = [];
 
 const SORT_KEYS = {
@@ -677,26 +710,14 @@ function applySort(arr) {
     return 0;
   });
 }
-
 function toggleSort(key) {
   const existing = sortCriteria.find(c => c.key === key);
-  if (!existing) {
-    sortCriteria.push({ key, dir: 'asc' });
-  } else if (existing.dir === 'asc') {
-    existing.dir = 'desc';
-  } else {
-    sortCriteria = sortCriteria.filter(c => c.key !== key);
-  }
-  updateSortChips();
-  renderGames();
+  if (!existing) { sortCriteria.push({ key, dir: 'asc' }); }
+  else if (existing.dir === 'asc') { existing.dir = 'desc'; }
+  else { sortCriteria = sortCriteria.filter(c => c.key !== key); }
+  updateSortChips(); renderGames();
 }
-
-function clearSort() {
-  sortCriteria = [];
-  updateSortChips();
-  renderGames();
-}
-
+function clearSort() { sortCriteria = []; updateSortChips(); renderGames(); }
 function updateSortChips() {
   const labels = { date:'📅 Date', time:'🕐 Time', venue:'📍 Venue', difficulty:'⚡ Difficulty', court:'🏟 Court', available:'✅ Availability' };
   document.querySelectorAll('.sort-chip').forEach(el => {
@@ -715,10 +736,7 @@ function updateSortChips() {
   document.getElementById('sort-reset-btn').style.display = sortCriteria.length ? 'inline' : 'none';
 }
 
-// Populate multiselect chip pickers — contextual (each group filters by other groups)
-function normalizeTime(t) {
-  return (t || '').trim().toLowerCase().replace(/\s+/g, ' ');
-}
+function normalizeTime(t) { return (t || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 function sortTimes(times) {
   return times.slice().sort((a, b) => {
     function toMin(str) {
@@ -732,7 +750,8 @@ function sortTimes(times) {
     return toMin(a) - toMin(b);
   });
 }
-// ── Dropdown multiselect ────────────────────────────────────────────────────
+
+// ── Dropdown multiselect ──────────────────────────────────────────────────────
 const DD_CONFIG = {
   diff  : { set: () => activeDifficulties, panelId: 'dd-panel-diff',  triggerId: 'dd-trigger-diff',  labelId: 'dd-label-diff',  placeholder: 'All levels' },
   court : { set: () => activeCourts,       panelId: 'dd-panel-court', triggerId: 'dd-trigger-court', labelId: 'dd-label-court', placeholder: 'All courts' },
@@ -742,19 +761,12 @@ let openDropdown = null;
 
 function toggleDropdown(key) {
   if (openDropdown && openDropdown !== key) closeAllDropdowns();
-  const cfg = DD_CONFIG[key];
+  const cfg     = DD_CONFIG[key];
   const panel   = document.getElementById(cfg.panelId);
   const trigger = document.getElementById(cfg.triggerId);
   const isOpen  = panel.classList.contains('open');
-  if (isOpen) {
-    panel.classList.remove('open');
-    trigger.classList.remove('open');
-    openDropdown = null;
-  } else {
-    panel.classList.add('open');
-    trigger.classList.add('open');
-    openDropdown = key;
-  }
+  if (isOpen) { panel.classList.remove('open'); trigger.classList.remove('open'); openDropdown = null; }
+  else         { panel.classList.add('open');    trigger.classList.add('open');    openDropdown = key;  }
 }
 function closeAllDropdowns() {
   Object.values(DD_CONFIG).forEach(cfg => {
@@ -763,109 +775,74 @@ function closeAllDropdowns() {
   });
   openDropdown = null;
 }
-// Close on outside click
 document.addEventListener('click', e => {
   if (openDropdown && !e.target.closest('.filter-select-wrap')) closeAllDropdowns();
   if (!e.target.closest('#rule-form .field-group')) closeRuleDropdowns();
 });
 
 function renderDropdown(key, values) {
-  const cfg     = DD_CONFIG[key];
+  const cfg       = DD_CONFIG[key];
   const activeSet = cfg.set();
-  const panel   = document.getElementById(cfg.panelId);
-  const trigger = document.getElementById(cfg.triggerId);
-  const label   = document.getElementById(cfg.labelId);
+  const panel     = document.getElementById(cfg.panelId);
+  const trigger   = document.getElementById(cfg.triggerId);
+  const label     = document.getElementById(cfg.labelId);
   if (!panel) return;
-
-  if (values.length === 0) {
-    panel.innerHTML = '<div class="dd-empty">No options available</div>';
-  } else {
-    panel.innerHTML = values.map((v, i) => `
-      <label class="dd-item">
-        <input type="checkbox" value="${esc(v)}" ${activeSet.has(v) ? 'checked' : ''}
-          onchange="toggleDDItem('${key}', this.value, this.checked)">
-        <span>${esc(v)}</span>
-      </label>`
-    ).join('');
-  }
-
-  // Update trigger label and style
+  panel.innerHTML = values.length === 0
+    ? '<div class="dd-empty">No options available</div>'
+    : values.map(v => `<label class="dd-item"><input type="checkbox" value="${esc(v)}" ${activeSet.has(v) ? 'checked' : ''} onchange="toggleDDItem('${key}', this.value, this.checked)"><span>${esc(v)}</span></label>`).join('');
   const count = activeSet.size;
-  if (count === 0) {
-    label.textContent = cfg.placeholder;
-    trigger.classList.remove('has-selection');
-  } else if (count === 1) {
-    label.textContent = [...activeSet][0];
-    trigger.classList.add('has-selection');
-  } else {
-    label.textContent = `${count} selected`;
-    trigger.classList.add('has-selection');
-  }
+  if (count === 0)      { label.textContent = cfg.placeholder; trigger.classList.remove('has-selection'); }
+  else if (count === 1) { label.textContent = [...activeSet][0]; trigger.classList.add('has-selection'); }
+  else                  { label.textContent = `${count} selected`; trigger.classList.add('has-selection'); }
 }
-
 function toggleDDItem(key, value, checked) {
   const cfg = DD_CONFIG[key];
   const set = cfg.set();
   if (checked) set.add(value); else set.delete(value);
-  // Re-render label only (don't re-render panel — prevents layout shift)
-  const label = document.getElementById(cfg.labelId);
+  const label   = document.getElementById(cfg.labelId);
   const trigger = document.getElementById(cfg.triggerId);
-  const count = set.size;
-  if (count === 0) { label.textContent = cfg.placeholder; trigger.classList.remove('has-selection'); }
+  const count   = set.size;
+  if (count === 0)      { label.textContent = cfg.placeholder; trigger.classList.remove('has-selection'); }
   else if (count === 1) { label.textContent = [...set][0]; trigger.classList.add('has-selection'); }
-  else { label.textContent = `${count} selected`; trigger.classList.add('has-selection'); }
-  updateClearBtn();
-  renderGames();
+  else                  { label.textContent = `${count} selected`; trigger.classList.add('has-selection'); }
+  updateClearBtn(); renderGames();
 }
-
 function updateDropdowns() {
-  // Base: venue + availability, not diff/court/time
   let base = activeVenues.size === 0 ? allGames : allGames.filter(g => activeVenues.has(g.venueId));
   if (activeFilter === 'open') base = base.filter(g => g.available);
   if (activeFilter === 'full') base = base.filter(g => !g.available);
-
-  // Each group: filter by OTHER two active groups
-  const diffPool  = base
-    .filter(g => !activeCourts.size || activeCourts.has(g.court))
-    .filter(g => !activeTimes.size  || activeTimes.has(normalizeTime(g.time)));
-  const courtPool = base
-    .filter(g => !activeDifficulties.size || activeDifficulties.has(g.difficulty))
-    .filter(g => !activeTimes.size        || activeTimes.has(normalizeTime(g.time)));
-  const timePool  = base
-    .filter(g => !activeDifficulties.size || activeDifficulties.has(g.difficulty))
-    .filter(g => !activeCourts.size       || activeCourts.has(g.court));
-
+  const diffPool  = base.filter(g => !activeCourts.size || activeCourts.has(g.court))
+                        .filter(g => !activeTimes.size  || activeTimes.has(normalizeTime(g.time)));
+  const courtPool = base.filter(g => !activeDifficulties.size || activeDifficulties.has(g.difficulty))
+                        .filter(g => !activeTimes.size        || activeTimes.has(normalizeTime(g.time)));
+  const timePool  = base.filter(g => !activeDifficulties.size || activeDifficulties.has(g.difficulty))
+                        .filter(g => !activeCourts.size       || activeCourts.has(g.court));
   const difficulties = [...new Set(diffPool.map(g => g.difficulty).filter(Boolean))].sort();
   const courts = [...new Set(courtPool.map(g => g.court).filter(Boolean))].sort((a, b) => {
     if (a === 'N/A') return 1; if (b === 'N/A') return -1;
     return a.localeCompare(b, undefined, { numeric: true });
   });
   const times = sortTimes([...new Set(timePool.map(g => normalizeTime(g.time)).filter(Boolean))]);
-
-  // Remove any active selections that no longer exist in available options
   let changed = false;
   for (const v of [...activeDifficulties]) if (!difficulties.includes(v)) { activeDifficulties.delete(v); changed = true; }
   for (const v of [...activeCourts])       if (!courts.includes(v))       { activeCourts.delete(v);       changed = true; }
   for (const v of [...activeTimes])        if (!times.includes(v))        { activeTimes.delete(v);         changed = true; }
   if (changed) updateClearBtn();
-
   renderDropdown('diff',  difficulties);
   renderDropdown('court', courts);
   renderDropdown('time',  times);
 }
 
-// ── Tab counts + dots ──────────────────────────────────────────────────────────
+// ── Tab counts + dots ─────────────────────────────────────────────────────────
 function updateTabs(games) {
   const venueIds = ['laguardia','beacon','brandeis-fri','brandeis-sun','clinics'];
-  const allOpen = games.filter(g => g.available).length;
-
+  const allOpen  = games.filter(g => g.available).length;
   document.getElementById('count-all').textContent = games.length;
   const dotAll = document.getElementById('dot-all');
   dotAll.className = 'tab-dot ' + (allOpen > 0 ? 'has-open' : games.length > 0 ? 'all-full' : 'empty');
-
   venueIds.forEach(vid => {
-    const vGames = games.filter(g => g.venueId === vid);
-    const vOpen  = vGames.filter(g => g.available).length;
+    const vGames  = games.filter(g => g.venueId === vid);
+    const vOpen   = vGames.filter(g => g.available).length;
     const countEl = document.getElementById('count-' + vid);
     const dotEl   = document.getElementById('dot-' + vid);
     if (countEl) countEl.textContent = vGames.length || '0';
@@ -877,64 +854,36 @@ function updateTabs(games) {
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-
 function availClass(g) {
   if (g.available) return 'open';
   const s = (g.spots||'').toLowerCase();
   return (s.includes('full') || s.includes('sold')) ? 'full' : 'unknown';
 }
-
 function renderGames() {
   const container = document.getElementById('games-container');
-
-  // Keep dropdowns in sync with all current filters
   updateDropdowns();
-
-  // Filter by venue
   let visible = activeVenues.size === 0 ? allGames : allGames.filter(g => activeVenues.has(g.venueId));
-  // Filter by availability
   if (activeFilter === 'open') visible = visible.filter(g => g.available);
   if (activeFilter === 'full') visible = visible.filter(g => !g.available);
-  // Filter by difficulty / court
   if (activeDifficulties.size) visible = visible.filter(g => activeDifficulties.has(g.difficulty));
   if (activeCourts.size)       visible = visible.filter(g => activeCourts.has(g.court));
   if (activeTimes.size)        visible = visible.filter(g => activeTimes.has(normalizeTime(g.time)));
-
-  // Apply multi-sort
   visible = applySort(visible);
 
-  // Stats (always whole dataset)
   document.getElementById('stat-total').textContent = allGames.length;
   document.getElementById('stat-open').textContent  = allGames.filter(g => g.available).length;
   document.getElementById('stat-full').textContent  = allGames.filter(g => !g.available).length;
-
-  // Filtered count label
   const total = activeVenues.size === 0 ? allGames.length : allGames.filter(g => activeVenues.has(g.venueId)).length;
-  document.getElementById('filtered-count').textContent =
-    visible.length !== total ? `Showing ${visible.length} of ${total}` : '';
+  document.getElementById('filtered-count').textContent = visible.length !== total ? `Showing ${visible.length} of ${total}` : '';
 
   if (allGames.length === 0) {
-    container.innerHTML = `
-      <div class="state-card">
-        <div class="state-icon">📭</div>
-        <div class="state-title">No sessions found yet</div>
-        <div class="state-sub">The server is scraping all venues. This can take a few seconds.</div>
-        <a class="btn btn-primary" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank">Check the site directly ↗</a>
-      </div>`;
+    container.innerHTML = `<div class="state-card"><div class="state-icon">📭</div><div class="state-title">No sessions found yet</div><div class="state-sub">The scraper may not have run yet. Check that GitHub Actions is enabled on your repo.</div><a class="btn btn-primary" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank">Check the site directly ↗</a></div>`;
     return;
   }
-
   if (visible.length === 0) {
-    container.innerHTML = `
-      <div class="state-card">
-        <div class="state-icon">🔍</div>
-        <div class="state-title">No sessions match this filter</div>
-        <div class="state-sub">Try switching to "All" or selecting a different venue.</div>
-        <button class="btn btn-primary" onclick="setFilter('all');setVenue('all')">Show everything</button>
-      </div>`;
+    container.innerHTML = `<div class="state-card"><div class="state-icon">🔍</div><div class="state-title">No sessions match this filter</div><div class="state-sub">Try switching to "All" or selecting a different venue.</div><button class="btn btn-primary" onclick="setFilter('all');setVenue('all')">Show everything</button></div>`;
     return;
   }
-
   container.innerHTML = `<div class="games-grid">${visible.map(game => {
     const cls = availClass(game);
     const spotsText = game.spots || (game.available ? 'Available' : 'Sold Out');
@@ -948,9 +897,7 @@ function renderGames() {
         <div class="card-date">${esc(game.date || 'Date TBD')}</div>
         ${game.time ? `<div class="card-time">🕐 ${esc(game.time)}</div>` : ''}
       </div>
-      <span class="spots-badge ${cls}">
-        ${cls==='open'?'✅':cls==='full'?'🔴':'⚠️'} ${esc(spotsText)}
-      </span>
+      <span class="spots-badge ${cls}">${cls==='open'?'✅':cls==='full'?'🔴':'⚠️'} ${esc(spotsText)}</span>
     </div>
     <div class="card-meta">
       ${game.gym        ? `<span class="meta-tag">📍 ${esc(game.gym)}</span>` : ''}
@@ -961,17 +908,13 @@ function renderGames() {
   <div class="card-footer">
     <span class="card-fee">${game.fee ? '$' + esc(game.fee) : ''}</span>
     <div style="text-align:right">
-      <a class="btn btn-primary btn-sm" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank" rel="noopener">
-        ${game.available ? 'Register ↗' : 'View ↗'}
-      </a>
+      <a class="btn btn-primary btn-sm" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank" rel="noopener">${game.available ? 'Register ↗' : 'View ↗'}</a>
       <div class="tab-hint">then click <strong>${esc(game.venueLabel)}</strong></div>
     </div>
   </div>
 </div>`;
   }).join('')}</div>`;
 }
-
-// ── Error notices ──────────────────────────────────────────────────────────────
 function renderErrors(errors) {
   const container = document.getElementById('error-notices');
   if (!errors || Object.keys(errors).length === 0) { container.innerHTML = ''; return; }
@@ -979,10 +922,8 @@ function renderErrors(errors) {
     `<div class="venue-error">⚠️ <strong>${esc(vid)}</strong>: ${esc(msg)} — data may be stale</div>`
   ).join('');
 }
-
-// ── Status ─────────────────────────────────────────────────────────────────────
 function setStatus(state, text) {
-  document.getElementById('status-dot').className  = 'status-dot ' + (state==='live'?'live':state==='error'?'error':'');
+  document.getElementById('status-dot').className   = 'status-dot ' + (state==='live'?'live':state==='error'?'error':'');
   document.getElementById('status-text').textContent = text;
 }
 function updateLastUpdated(ts) {
@@ -991,116 +932,82 @@ function updateLastUpdated(ts) {
   el.classList.remove('pending');
   el.textContent = 'Last updated: ' + new Date(ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }
-
-// ── Toast ──────────────────────────────────────────────────────────────────────
 function toast(msg, type='') {
   const el = document.createElement('div');
-  el.className = 'toast ' + type;
-  el.textContent = msg;
+  el.className = 'toast ' + type; el.textContent = msg;
   document.getElementById('toast-container').appendChild(el);
   setTimeout(() => el.remove(), 4500);
 }
 
-// ── Polling (cloud version — fetches games.json every 30s) ────────────────────
+// ── Fetch games from Supabase ─────────────────────────────────────────────────
 let prevAvailableIds = new Set();
 
-function fetchGames() {
-  fetch('games.json?' + Date.now())
-    .then(r => r.json())
-    .then(data => {
-      const games = data.games || [];
-      const nowAvail = new Set(games.filter(g => g.available).map(g => g.id));
-      const newlyAvail = games.filter(g => g.available && !prevAvailableIds.has(g.id));
-      prevAvailableIds = nowAvail;
+async function fetchGames() {
+  try {
+    const { data, error } = await sb
+      .from('scrape_results')
+      .select('games,last_scrape,errors')
+      .eq('id', 1)
+      .single();
+    if (error) throw error;
+    const games      = data.games || [];
+    const nowAvail   = new Set(games.filter(g => g.available).map(g => g.id));
+    const newlyAvail = games.filter(g => g.available && !prevAvailableIds.has(g.id));
+    prevAvailableIds = nowAvail;
 
-      allGames = games;
-      updateTabs(allGames);
-      updateDropdowns();
-      renderGames();
-      renderErrors(data.errors);
-      updateLastUpdated(data.lastScrape);
-      setStatus('live', 'Live');
+    allGames = games;
+    updateTabs(allGames);
+    updateDropdowns();
+    renderGames();
+    renderErrors(data.errors);
+    updateLastUpdated(data.last_scrape);
+    setStatus('live', 'Live');
 
-      if (newlyAvail.length > 0) {
-        const count  = newlyAvail.length;
-        const venues = [...new Set(newlyAvail.map(g => g.venueLabel))].join(', ');
-        document.getElementById('notif-detail').textContent = `${count} slot${count>1?'s':''} at ${venues}`;
-        const banner = document.getElementById('notif-banner');
-        banner.style.display = 'flex';
-        setTimeout(() => { banner.style.display = 'none'; }, 15000);
-        sendNotification('🏐 Volleyball spots opened!', `${count} slot${count>1?'s':''} available at ${venues}`);
-        toast(`🎉 ${count} new slot${count>1?'s':''} at ${venues}!`, 'success');
-      }
-    })
-    .catch(() => {
-      setStatus('error', 'Data unavailable');
-      if (allGames.length === 0) {
-        document.getElementById('games-container').innerHTML = `
-          <div class="state-card">
-            <div class="state-icon">⚠️</div>
-            <div class="state-title">Could not load game data</div>
-            <div class="state-sub">The scraper may not have run yet. Check that GitHub Actions is enabled on your repo.</div>
-            <button class="btn btn-primary" onclick="fetchGames()">Retry</button>
-          </div>`;
-      }
-    });
+    if (newlyAvail.length > 0) {
+      const count  = newlyAvail.length;
+      const venues = [...new Set(newlyAvail.map(g => g.venueLabel))].join(', ');
+      document.getElementById('notif-detail').textContent = `${count} slot${count>1?'s':''} at ${venues}`;
+      const banner = document.getElementById('notif-banner');
+      banner.style.display = 'flex';
+      setTimeout(() => { banner.style.display = 'none'; }, 15000);
+      sendNotification('🏐 Volleyball spots opened!', `${count} slot${count>1?'s':''} available at ${venues}`);
+      toast(`🎉 ${count} new slot${count>1?'s':''} at ${venues}!`, 'success');
+    }
+  } catch(e) {
+    setStatus('error', 'Data unavailable');
+    if (allGames.length === 0) {
+      document.getElementById('games-container').innerHTML = `
+        <div class="state-card">
+          <div class="state-icon">⚠️</div>
+          <div class="state-title">Could not load game data</div>
+          <div class="state-sub">The scraper may not have run yet. Check that GitHub Actions is enabled on your repo.</div>
+          <button class="btn btn-primary" onclick="fetchGames()">Retry</button>
+        </div>`;
+    }
+  }
 }
 
-
-// ── Alerts Panel ──────────────────────────────────────────────────────────────
-let alertRules     = [];
-let editingRuleIdx = -1;
+// ── Alerts panel ──────────────────────────────────────────────────────────────
+let alertRules      = [];
+let editingRuleId   = null;
 let ruleFormFilters = { gym: new Set(), time: new Set(), difficulty: new Set(), court: new Set() };
-
-function deriveRepo() {
-  const owner = window.location.hostname.replace(/\.github\.io$/, '');
-  const repo  = window.location.pathname.split('/').filter(Boolean)[0] || '';
-  return (owner && repo) ? owner + '/' + repo : '';
-}
 
 function openAlertsPanel() {
   document.getElementById('alerts-panel').classList.add('open');
-  const repoEl = document.getElementById('gh-repo');
-  const patEl  = document.getElementById('gh-pat');
-  if (!repoEl.value) repoEl.value = localStorage.getItem('gh_repo') || deriveRepo();
-  if (!patEl.value)  patEl.value  = localStorage.getItem('gh_pat')  || '';
-  if (repoEl.value && patEl.value) loadRulesFromGitHub();
+  document.getElementById('panel-user-email').textContent = currentUser?.email || '';
+  loadRules();
 }
-
 function closeAlertsPanel() {
   document.getElementById('alerts-panel').classList.remove('open');
   hideRuleForm();
 }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAlertsPanel(); });
 
-function savePanelCreds() {
-  const repo = document.getElementById('gh-repo').value.trim();
-  const pat  = document.getElementById('gh-pat').value.trim();
-  if (repo) localStorage.setItem('gh_repo', repo);
-  if (pat)  localStorage.setItem('gh_pat',  pat);
-}
-
-async function loadRulesFromGitHub() {
-  savePanelCreds();
-  const pat  = document.getElementById('gh-pat').value.trim();
-  const repo = document.getElementById('gh-repo').value.trim();
-  const list = document.getElementById('rules-list');
-  if (!pat || !repo) {
-    list.innerHTML = '<div style="font-size:.82rem;color:var(--warn)">Enter repo and token above, then click Load.</div>';
-    return;
-  }
-  list.innerHTML = '<div style="font-size:.82rem;color:var(--gray500)">Loading…</div>';
-  try {
-    const res = await fetch(`https://api.github.com/repos/${repo}/contents/config/alerts.json`, {
-      headers: { 'Authorization': `Bearer ${pat}`, 'Accept': 'application/vnd.github+json' }
-    });
-    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
-    const data   = await res.json();
-    const parsed = JSON.parse(decodeURIComponent(escape(atob(data.content.replace(/\n/g, '')))));
-    alertRules   = parsed.rules || [];
-    renderRulesList(alertRules);
-  } catch(e) {
-    list.innerHTML = `<div style="font-size:.82rem;color:var(--full)">Failed to load: ${esc(e.message)}</div>`;
-  }
+async function loadRules() {
+  const { data, error } = await sb.from('alert_rules').select('*').order('created_at');
+  if (error) { console.error('loadRules:', error); return; }
+  alertRules = data || [];
+  renderRulesList(alertRules);
 }
 
 function renderRulesList(rules) {
@@ -1109,7 +1016,7 @@ function renderRulesList(rules) {
     container.innerHTML = '<div style="font-size:.82rem;color:var(--gray500);font-style:italic">No rules yet — add one below.</div>';
     return;
   }
-  container.innerHTML = rules.map((rule, i) => {
+  container.innerHTML = rules.map(rule => {
     const tags = Object.entries(rule.filters || {})
       .filter(([, v]) => v && v.length)
       .map(([k, v]) => `<span class="rule-filter-tag active">${esc(k)}: ${v.map(esc).join(', ')}</span>`)
@@ -1118,38 +1025,43 @@ function renderRulesList(rules) {
     <div class="rule-card">
       <div class="rule-card-header">
         <label class="rule-toggle">
-          <input type="checkbox" ${rule.enabled !== false ? 'checked' : ''} onchange="alertRules[${i}].enabled=this.checked">
+          <input type="checkbox" ${rule.enabled !== false ? 'checked' : ''} onchange="toggleRule('${esc(rule.id)}', this.checked)">
           <span class="rule-toggle-slider"></span>
         </label>
         <span class="rule-label">${esc(rule.label || 'Unnamed rule')}</span>
-        <button class="btn btn-ghost btn-sm" onclick="editRule(${i})" style="padding:.2rem .45rem;font-size:.75rem;flex-shrink:0">Edit</button>
-        <button class="rule-delete" onclick="deleteRule(${i})" title="Delete">🗑</button>
+        <button class="btn btn-ghost btn-sm" onclick="editRule('${esc(rule.id)}')" style="padding:.2rem .45rem;font-size:.75rem;flex-shrink:0">Edit</button>
+        <button class="rule-delete" onclick="deleteRule('${esc(rule.id)}')" title="Delete">🗑</button>
       </div>
-      <div class="rule-filters">${tags || '<span style="font-size:.72rem;color:var(--gray400);font-style:italic">No filters set — matches all sessions</span>'}</div>
+      <div class="rule-filters">${tags || '<span style="font-size:.72rem;color:var(--gray400);font-style:italic">No filters — matches all sessions</span>'}</div>
     </div>`;
   }).join('');
 }
 
-function deleteRule(idx) {
-  alertRules.splice(idx, 1);
-  renderRulesList(alertRules);
+async function toggleRule(id, enabled) {
+  await sb.from('alert_rules').update({ enabled }).eq('id', id);
+}
+async function deleteRule(id) {
+  if (!confirm('Delete this alert rule?')) return;
+  await sb.from('alert_rules').delete().eq('id', id);
+  await loadRules();
 }
 
 function showAddRuleForm() {
-  editingRuleIdx  = -1;
+  editingRuleId   = null;
   ruleFormFilters = { gym: new Set(), time: new Set(), difficulty: new Set(), court: new Set() };
-  document.getElementById('new-rule-label').value    = '';
+  document.getElementById('new-rule-label').value     = '';
   document.getElementById('new-rule-enabled').checked = true;
-  document.getElementById('rule-form-title').textContent   = 'New rule';
-  document.getElementById('rule-form-submit').textContent  = 'Add rule';
+  document.getElementById('rule-form-title').textContent  = 'New rule';
+  document.getElementById('rule-form-submit').textContent = 'Add rule';
   populateRuleFormDropdowns();
   document.getElementById('rule-form').classList.add('open');
   document.getElementById('add-rule-btn').style.display = 'none';
 }
 
-function editRule(idx) {
-  const rule = alertRules[idx];
-  editingRuleIdx  = idx;
+function editRule(id) {
+  const rule = alertRules.find(r => r.id === id);
+  if (!rule) return;
+  editingRuleId   = id;
   ruleFormFilters = {
     gym:        new Set(rule.filters?.gym        || []),
     time:       new Set(rule.filters?.time       || []),
@@ -1168,7 +1080,7 @@ function editRule(idx) {
 function hideRuleForm() {
   document.getElementById('rule-form').classList.remove('open');
   document.getElementById('add-rule-btn').style.display = '';
-  editingRuleIdx = -1;
+  editingRuleId = null;
   closeRuleDropdowns();
 }
 
@@ -1189,31 +1101,27 @@ function populateRuleFormDropdowns() {
     updateRuleTriggerLabel(field);
   }
 }
-
 function toggleRuleFilter(field, value, checked) {
   if (checked) ruleFormFilters[field].add(value); else ruleFormFilters[field].delete(value);
   updateRuleTriggerLabel(field);
 }
-
 function updateRuleTriggerLabel(field) {
   const set     = ruleFormFilters[field];
   const trigger = document.getElementById(`rule-dd-trigger-${field}`);
   const label   = document.getElementById(`rule-dd-label-${field}`);
-  const ph = { gym: 'Any gym', time: 'Any time', difficulty: 'Any difficulty', court: 'Any court' };
+  const ph = { gym:'Any gym', time:'Any time', difficulty:'Any difficulty', court:'Any court' };
   if (!trigger || !label) return;
   const n = set.size;
   if (n === 0)      { label.textContent = ph[field]; trigger.classList.remove('has-selection'); }
   else if (n === 1) { label.textContent = [...set][0]; trigger.classList.add('has-selection'); }
   else              { label.textContent = `${n} selected`; trigger.classList.add('has-selection'); }
 }
-
 function closeRuleDropdowns() {
-  ['gym', 'time', 'difficulty', 'court'].forEach(f => {
+  ['gym','time','difficulty','court'].forEach(f => {
     document.getElementById(`rule-dd-list-${f}`)?.classList.remove('open');
     document.getElementById(`rule-dd-trigger-${f}`)?.classList.remove('open');
   });
 }
-
 function toggleRuleDropdown(field) {
   const list    = document.getElementById(`rule-dd-list-${field}`);
   const trigger = document.getElementById(`rule-dd-trigger-${field}`);
@@ -1222,58 +1130,39 @@ function toggleRuleDropdown(field) {
   if (!isOpen) { list.classList.add('open'); trigger.classList.add('open'); }
 }
 
-function submitRuleForm() {
+async function submitRuleForm() {
   const label = document.getElementById('new-rule-label').value.trim();
   if (!label) { toast('Enter a name for this rule', 'warn'); return; }
-  const rule = {
-    id:      editingRuleIdx >= 0 ? alertRules[editingRuleIdx].id : 'rule-' + Date.now(),
-    label,
-    enabled: document.getElementById('new-rule-enabled').checked,
-    filters: {
-      gym:        [...ruleFormFilters.gym],
-      date:       editingRuleIdx >= 0 ? (alertRules[editingRuleIdx].filters?.date || []) : [],
-      time:       [...ruleFormFilters.time],
-      difficulty: [...ruleFormFilters.difficulty],
-      court:      [...ruleFormFilters.court],
-    },
+  const filters = {
+    gym:        [...ruleFormFilters.gym],
+    date:       editingRuleId ? (alertRules.find(r => r.id === editingRuleId)?.filters?.date || []) : [],
+    time:       [...ruleFormFilters.time],
+    difficulty: [...ruleFormFilters.difficulty],
+    court:      [...ruleFormFilters.court],
   };
-  if (editingRuleIdx >= 0) alertRules[editingRuleIdx] = rule; else alertRules.push(rule);
-  renderRulesList(alertRules);
-  hideRuleForm();
-}
-
-async function saveRulesToGitHub() {
-  savePanelCreds();
-  const pat  = document.getElementById('gh-pat').value.trim();
-  const repo = document.getElementById('gh-repo').value.trim();
-  if (!pat || !repo) { toast('Enter GitHub repo and token first', 'error'); return; }
-  const btn = document.getElementById('save-rules-btn');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  const enabled = document.getElementById('new-rule-enabled').checked;
+  const btn = document.getElementById('rule-form-submit');
+  btn.disabled = true;
   try {
-    const getRes = await fetch(`https://api.github.com/repos/${repo}/contents/config/alerts.json`, {
-      headers: { 'Authorization': `Bearer ${pat}`, 'Accept': 'application/vnd.github+json' }
-    });
-    if (!getRes.ok) throw new Error(`Read failed (${getRes.status})`);
-    const current = await getRes.json();
-    const content = btoa(unescape(encodeURIComponent(JSON.stringify({ rules: alertRules }, null, 2))));
-    const putRes  = await fetch(`https://api.github.com/repos/${repo}/contents/config/alerts.json`, {
-      method: 'PUT',
-      headers: { 'Authorization': `Bearer ${pat}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json' },
-      body: JSON.stringify({ message: 'chore: update alert rules', content, sha: current.sha }),
-    });
-    if (!putRes.ok) { const e = await putRes.json(); throw new Error(e.message || putRes.status); }
-    toast('✓ Alert rules saved to GitHub!', 'success');
+    if (editingRuleId) {
+      const { error } = await sb.from('alert_rules').update({ label, enabled, filters }).eq('id', editingRuleId);
+      if (error) throw error;
+    } else {
+      const { error } = await sb.from('alert_rules').insert({
+        user_id: currentUser.id, user_email: currentUser.email,
+        label, enabled, filters,
+      });
+      if (error) throw error;
+    }
+    await loadRules();
+    hideRuleForm();
+    toast(editingRuleId ? '✓ Rule updated' : '✓ Rule added', 'success');
   } catch(e) {
-    toast('Save failed: ' + e.message, 'error');
+    toast('Failed to save rule: ' + e.message, 'error');
   } finally {
-    btn.disabled = false; btn.textContent = 'Save to GitHub';
+    btn.disabled = false;
   }
 }
-
-// ── Boot ───────────────────────────────────────────────────────────────────────
-checkNotifPermission();
-fetchGames();
-setInterval(fetchGames, 300000);
 </script>
 
 </body>
