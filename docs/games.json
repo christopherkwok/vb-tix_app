@@ -1,6 +1,36 @@
 {
   "games": [
     {
+      "id": "laguardia::fri-06/26::intermediate---court-1",
+      "venueId": "laguardia",
+      "venueLabel": "Laguardia / Fri",
+      "date": "Fri 06/26",
+      "gym": "LaGuardia H.S.",
+      "level": "Intermediate - Court 1",
+      "difficulty": "Intermediate",
+      "court": "Court 1",
+      "time": "7:00 pm - 10:30 pm",
+      "fee": "18.00",
+      "spots": "Sold Out",
+      "available": false,
+      "link": "https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1"
+    },
+    {
+      "id": "laguardia::fri-06/26::intermediate---court-2",
+      "venueId": "laguardia",
+      "venueLabel": "Laguardia / Fri",
+      "date": "Fri 06/26",
+      "gym": "LaGuardia H.S.",
+      "level": "Intermediate - Court 2",
+      "difficulty": "Intermediate",
+      "court": "Court 2",
+      "time": "7:00 pm - 10:30 pm",
+      "fee": "18.00",
+      "spots": "Sold Out",
+      "available": false,
+      "link": "https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1"
+    },
+    {
       "id": "beacon::fri-06/26::advanced",
       "venueId": "beacon",
       "venueLabel": "Beacon / Fri",
@@ -1201,8 +1231,6 @@
       "link": "https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1"
     }
   ],
-  "lastScrape": "2026-06-24T06:50:54.639Z",
-  "errors": {
-    "laguardia": "HTTP 522"
-  }
+  "lastScrape": "2026-06-24T06:55:22.040Z",
+  "errors": {}
 }
