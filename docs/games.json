@@ -86,7 +86,7 @@
       "court": "N/A",
       "time": "7:30 pm - 10:00 pm",
       "fee": "16.00",
-      "spots": "3 Spaces",
+      "spots": "4 Spaces",
       "available": true,
       "link": "https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1"
     },
@@ -1231,6 +1231,6 @@
       "link": "https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1"
     }
   ],
-  "lastScrape": "2026-06-24T18:45:25.401Z",
+  "lastScrape": "2026-06-24T18:50:22.648Z",
   "errors": {}
 }
