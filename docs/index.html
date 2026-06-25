@@ -632,17 +632,31 @@ async function panelSignIn() {
   if (!email) return;
   const btn = document.getElementById('panel-login-btn');
   btn.disabled = true; btn.textContent = 'Sending…';
-  const { error } = await sb.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.origin + window.location.pathname },
-  });
-  if (error) {
-    document.getElementById('panel-login-error').textContent = error.message;
+  try {
+    const { error } = await sb.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin + window.location.pathname },
+    });
+    if (error) {
+      console.error('Sign-in error:', error);
+      const raw = error.message;
+      const msg = (typeof raw === 'string' && raw && raw !== '{}' && raw !== '[]')
+        ? raw
+        : (error.status === 429 || error.status === 422)
+          ? 'Too many sign-in attempts — wait a few minutes and try again.'
+          : `Sign-in failed (${error.status || 'unknown'}) — please try again.`;
+      document.getElementById('panel-login-error').textContent = msg;
+      document.getElementById('panel-login-error').style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Send sign-in link';
+    } else {
+      document.getElementById('panel-login-form').style.display = 'none';
+      document.getElementById('panel-login-sent').style.display = 'block';
+    }
+  } catch (e) {
+    console.error('Sign-in exception:', e);
+    document.getElementById('panel-login-error').textContent = e.message || 'An unexpected error occurred.';
     document.getElementById('panel-login-error').style.display = 'block';
     btn.disabled = false; btn.textContent = 'Send sign-in link';
-  } else {
-    document.getElementById('panel-login-form').style.display = 'none';
-    document.getElementById('panel-login-sent').style.display = 'block';
   }
 }
 
