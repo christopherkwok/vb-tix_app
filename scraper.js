@@ -278,11 +278,14 @@ async function main() {
 
   // Write updated data
   if (useSupabase) {
-    const { status } = await supabaseRequest(
+    const { status, data: writeResult } = await supabaseRequest(
       'POST', '/scrape_results',
       { id: 1, games: allGames, last_scrape: new Date().toISOString(), errors },
       { 'Prefer': 'resolution=merge-duplicates' }
     );
+    if (status < 200 || status >= 300) {
+      throw new Error(`Supabase write failed HTTP ${status}: ${JSON.stringify(writeResult)}`);
+    }
     console.log(`  ✓ Supabase scrape_results updated (HTTP ${status})`);
   } else {
     fs.mkdirSync(path.join(__dirname, 'docs'), { recursive: true });
