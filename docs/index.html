@@ -1003,13 +1003,18 @@ async function fetchGames() {
       toast(`🎉 ${count} new slot${count>1?'s':''} at ${venues}!`, 'success');
     }
   } catch(e) {
+    console.error('fetchGames error:', e);
     setStatus('error', 'Data unavailable');
     if (allGames.length === 0) {
+      const isNoData = e?.code === 'PGRST116';
+      const msg = isNoData
+        ? 'No scrape data yet — trigger the GitHub Actions workflow once to populate the database.'
+        : `Could not load game data (${e?.code || e?.message || 'unknown error'}) — check the browser console for details.`;
       document.getElementById('games-container').innerHTML = `
         <div class="state-card">
           <div class="state-icon">⚠️</div>
           <div class="state-title">Could not load game data</div>
-          <div class="state-sub">The scraper may not have run yet. Check that GitHub Actions is enabled on your repo.</div>
+          <div class="state-sub">${msg}</div>
           <button class="btn btn-primary" onclick="fetchGames()">Retry</button>
         </div>`;
     }
