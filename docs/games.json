@@ -266,7 +266,7 @@
       "court": "Small Ct",
       "time": "8:15 pm - 10:35 pm",
       "fee": "9.00",
-      "spots": "3 Spaces",
+      "spots": "2 Spaces",
       "available": true,
       "link": "https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1"
     },
@@ -1231,6 +1231,6 @@
       "link": "https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1"
     }
   ],
-  "lastScrape": "2026-06-25T04:40:20.390Z",
+  "lastScrape": "2026-06-25T04:45:24.081Z",
   "errors": {}
 }
