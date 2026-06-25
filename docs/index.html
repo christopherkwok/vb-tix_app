@@ -491,6 +491,28 @@
     </div>
     <div class="panel-body">
 
+      <!-- Login section (shown when signed out) -->
+      <div id="panel-login-section" style="display:none">
+        <div style="text-align:center;padding:1rem 0 .5rem">
+          <div style="font-size:2rem;margin-bottom:.75rem">🔔</div>
+          <p style="font-size:.88rem;color:var(--gray700);margin-bottom:1.25rem">Sign in to set up email alerts when spots open at your preferred venues.</p>
+        </div>
+        <div id="panel-login-form">
+          <label style="font-size:.8rem;font-weight:500;color:var(--gray700);display:block;margin-bottom:.35rem">Email address</label>
+          <input class="field-input" id="panel-login-email" type="email" placeholder="you@example.com"
+            style="width:100%;margin-bottom:.75rem" onkeydown="if(event.key==='Enter')panelSignIn()">
+          <button class="btn btn-primary" onclick="panelSignIn()" style="width:100%;justify-content:center" id="panel-login-btn">Send sign-in link</button>
+        </div>
+        <div id="panel-login-sent" style="display:none;text-align:center;padding:.5rem 0">
+          <div style="font-size:2rem;margin-bottom:.75rem">✉️</div>
+          <p style="font-size:.88rem;color:var(--gray700);line-height:1.6">Check your email for a sign-in link. It expires in 1 hour.</p>
+        </div>
+        <div id="panel-login-error" style="display:none;margin-top:.75rem;padding:.5rem .75rem;background:#FEE2E2;border-radius:6px;font-size:.82rem;color:var(--full)"></div>
+      </div>
+
+      <!-- Signed-in section -->
+      <div id="panel-signed-in-section" style="display:none">
+
       <!-- Signed-in user -->
       <div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem .75rem;background:var(--gray50);border-radius:8px;font-size:.82rem">
         <span style="color:var(--gray500)">Signed in as <strong id="panel-user-email" style="color:var(--gray700)"></strong></span>
@@ -560,31 +582,12 @@
         <button class="btn btn-ghost btn-sm" id="add-rule-btn" onclick="showAddRuleForm()" style="align-self:flex-start">+ Add rule</button>
       </div>
 
+      </div><!-- /panel-signed-in-section -->
+
     </div>
   </div>
 </div>
 
-<!-- ── Login overlay ──────────────────────────────────────────────────────────── -->
-<div id="login-overlay" style="position:fixed;inset:0;background:var(--sand);z-index:500;display:flex;align-items:center;justify-content:center;padding:1rem">
-  <div style="background:var(--white);border-radius:14px;padding:2rem;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.15)">
-    <div style="text-align:center;margin-bottom:1.5rem">
-      <div style="font-size:2.5rem;margin-bottom:.5rem">🏐</div>
-      <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.3rem;font-weight:700;color:var(--gray900);margin-bottom:.25rem">Volleyball Tracker</h1>
-      <p style="font-size:.85rem;color:var(--gray500)">Sign in to view sessions and manage alerts</p>
-    </div>
-    <div id="login-form">
-      <label style="font-size:.8rem;font-weight:500;color:var(--gray700);display:block;margin-bottom:.35rem">Email address</label>
-      <input class="field-input" id="login-email" type="email" placeholder="you@example.com"
-        style="width:100%;margin-bottom:.75rem" onkeydown="if(event.key==='Enter')signIn()">
-      <button class="btn btn-primary" onclick="signIn()" style="width:100%;justify-content:center" id="login-btn">Send sign-in link</button>
-    </div>
-    <div id="login-sent" style="display:none;text-align:center;padding:.5rem 0">
-      <div style="font-size:2rem;margin-bottom:.75rem">✉️</div>
-      <p style="font-size:.88rem;color:var(--gray700);line-height:1.6">Check your email for a sign-in link. It expires in 1 hour.</p>
-    </div>
-    <div id="login-error" style="display:none;margin-top:.75rem;padding:.5rem .75rem;background:#FEE2E2;border-radius:6px;font-size:.82rem;color:var(--full)"></div>
-  </div>
-</div>
 
 <script>
 // ── Supabase ──────────────────────────────────────────────────────────────────
@@ -593,45 +596,57 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
-let appStarted  = false;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 sb.auth.onAuthStateChange((event, session) => {
   currentUser = session?.user ?? null;
-  const overlay   = document.getElementById('login-overlay');
-  const logoutBtn = document.getElementById('logout-btn');
-  if (currentUser) {
-    overlay.style.display   = 'none';
-    logoutBtn.style.display = '';
-    if (!appStarted) { appStarted = true; checkNotifPermission(); fetchGames(); setInterval(fetchGames, 300000); }
-  } else {
-    overlay.style.display   = 'flex';
-    logoutBtn.style.display = 'none';
-    appStarted = false;
+  document.getElementById('logout-btn').style.display = currentUser ? '' : 'none';
+  // Refresh panel state if it's open
+  if (document.getElementById('alerts-panel').classList.contains('open')) {
+    refreshPanelAuthState();
   }
 });
 
-async function signIn() {
-  const email = document.getElementById('login-email').value.trim();
+function refreshPanelAuthState() {
+  const loginSection    = document.getElementById('panel-login-section');
+  const signedInSection = document.getElementById('panel-signed-in-section');
+  if (currentUser) {
+    loginSection.style.display    = 'none';
+    signedInSection.style.display = '';
+    document.getElementById('panel-user-email').textContent = currentUser.email || '';
+    loadRules();
+  } else {
+    loginSection.style.display    = '';
+    signedInSection.style.display = 'none';
+    // Reset the login form in case it was left mid-flow
+    document.getElementById('panel-login-form').style.display = '';
+    document.getElementById('panel-login-sent').style.display = 'none';
+    document.getElementById('panel-login-error').style.display = 'none';
+    const btn = document.getElementById('panel-login-btn');
+    btn.disabled = false; btn.textContent = 'Send sign-in link';
+  }
+}
+
+async function panelSignIn() {
+  const email = document.getElementById('panel-login-email').value.trim();
   if (!email) return;
-  const btn = document.getElementById('login-btn');
+  const btn = document.getElementById('panel-login-btn');
   btn.disabled = true; btn.textContent = 'Sending…';
   const { error } = await sb.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: window.location.origin + window.location.pathname },
   });
   if (error) {
-    document.getElementById('login-error').textContent = error.message;
-    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('panel-login-error').textContent = error.message;
+    document.getElementById('panel-login-error').style.display = 'block';
     btn.disabled = false; btn.textContent = 'Send sign-in link';
   } else {
-    document.getElementById('login-form').style.display = 'none';
-    document.getElementById('login-sent').style.display = 'block';
+    document.getElementById('panel-login-form').style.display = 'none';
+    document.getElementById('panel-login-sent').style.display = 'block';
   }
 }
 
 async function signOut() {
-  appStarted = false;
   await sb.auth.signOut();
 }
 
@@ -994,8 +1009,7 @@ let ruleFormFilters = { gym: new Set(), time: new Set(), difficulty: new Set(), 
 
 function openAlertsPanel() {
   document.getElementById('alerts-panel').classList.add('open');
-  document.getElementById('panel-user-email').textContent = currentUser?.email || '';
-  loadRules();
+  refreshPanelAuthState();
 }
 function closeAlertsPanel() {
   document.getElementById('alerts-panel').classList.remove('open');
@@ -1129,6 +1143,11 @@ function toggleRuleDropdown(field) {
   closeRuleDropdowns();
   if (!isOpen) { list.classList.add('open'); trigger.classList.add('open'); }
 }
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+checkNotifPermission();
+fetchGames();
+setInterval(fetchGames, 300000);
 
 async function submitRuleForm() {
   const label = document.getElementById('new-rule-label').value.trim();
