@@ -1037,7 +1037,7 @@ function closeAlertsPanel() {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAlertsPanel(); });
 
 async function loadRules() {
-  const { data, error } = await sb.from('alert_rules').select('*').order('created_at');
+  const { data, error } = await sb.from('alert_rules').select('id, label, enabled, filters, created_at').order('created_at');
   if (error) { console.error('loadRules:', error); return; }
   alertRules = data || [];
   renderRulesList(alertRules);
@@ -1167,6 +1167,26 @@ function toggleRuleDropdown(field) {
 checkNotifPermission();
 fetchGames();
 setInterval(fetchGames, 300000);
+
+// One-click alert disable from email link (?disable_token=<uuid>)
+(async () => {
+  const token = new URLSearchParams(location.search).get('disable_token');
+  if (!token) return;
+  history.replaceState({}, '', location.pathname);
+  const pending = document.createElement('div');
+  pending.className = 'toast';
+  pending.textContent = 'Disabling alert…';
+  document.getElementById('toast-container').appendChild(pending);
+  try {
+    const res  = await fetch(`${SUPABASE_URL}/functions/v1/disable-rule?token=${encodeURIComponent(token)}`);
+    const json = await res.json();
+    pending.remove();
+    toast(res.ok ? `Alert "${json.label}" has been disabled.` : 'Link already used or invalid.', res.ok ? 'success' : 'error');
+  } catch (_) {
+    pending.remove();
+    toast('Could not reach server — try again later.', 'error');
+  }
+})();
 
 async function submitRuleForm() {
   const label = document.getElementById('new-rule-label').value.trim();

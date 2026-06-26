@@ -3,14 +3,12 @@
  * NYUrban Volleyball Tracker — GitHub Actions scraper
  *
  * Usage: node scraper.js
- * Writes docs/games.json, sends email alerts via Resend for newly-available spots.
- * Reads alert rules from config/alerts.json.
- * Designed to run on a cron schedule via GitHub Actions (zero dependencies).
+ * Scrapes all venues, upserts game data to Supabase, sends email alerts via
+ * Resend for newly-available spots matching per-user rules stored in Supabase.
+ * Triggered by cron-job.org via workflow_dispatch. Zero npm dependencies.
  */
 
 const https = require('https');
-const fs    = require('fs');
-const path  = require('path');
 
 const AJAX_URL = 'https://www.nyurban.com/wp-admin/admin-ajax.php';
 const PAGE_URL = 'https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1';
@@ -197,9 +195,6 @@ function supabaseRequest(method, path, body, extraHeaders = {}) {
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 async function main() {
-  const useSupabase = !!process.env.SUPABASE_URL;
-  const dataFile   = path.join(__dirname, 'docs', 'games.json');
-  const rulesFile  = path.join(__dirname, 'config', 'alerts.json');
   const resendKey  = process.env.RESEND_KEY  || '';
   const alertEmail = process.env.ALERT_EMAIL || '';
 
@@ -217,25 +212,13 @@ async function main() {
   }
 
   // Load previous game state to detect newly-available spots
-  let prevAvailIds = new Set();
-  if (useSupabase) {
-    const { data } = await supabaseRequest('GET', '/scrape_results?id=eq.1&select=games');
-    const prevGames = (data && data[0] && data[0].games) || [];
-    prevAvailIds = new Set(prevGames.filter(g => g.available).map(g => g.id));
-  } else {
-    let prevData = { games: [] };
-    try { if (fs.existsSync(dataFile)) prevData = JSON.parse(fs.readFileSync(dataFile, 'utf8')); } catch (_) {}
-    prevAvailIds = new Set((prevData.games || []).filter(g => g.available).map(g => g.id));
-  }
+  const { data: prevData } = await supabaseRequest('GET', '/scrape_results?id=eq.1&select=games');
+  const prevGames  = (prevData && prevData[0] && prevData[0].games) || [];
+  const prevAvailIds = new Set(prevGames.filter(g => g.available).map(g => g.id));
 
   // Load alert rules
-  let rules = [];
-  if (useSupabase) {
-    const { data } = await supabaseRequest('GET', '/alert_rules?enabled=eq.true&select=*');
-    rules = data || [];
-  } else {
-    try { if (fs.existsSync(rulesFile)) ({ rules } = JSON.parse(fs.readFileSync(rulesFile, 'utf8'))); } catch (_) {}
-  }
+  const { data: rulesData } = await supabaseRequest('GET', '/alert_rules?enabled=eq.true&select=*');
+  const rules = rulesData || [];
 
   // Scrape all venues
   console.log(`[${new Date().toISOString()}] Scraping all venues…`);
@@ -267,31 +250,25 @@ async function main() {
       const lines = matched.map(g =>
         `• ${g.venueLabel} | ${g.date} | ${g.time} | ${g.difficulty}${g.court !== 'N/A' ? ' | ' + g.court : ''} | ${g.gym} | ${g.spots} spots`
       ).join('\n');
-      const subject = `🏐 [${rule.label}] ${matched.length} spot${matched.length > 1 ? 's' : ''} just opened!`;
-      const body    = `Your alert "${rule.label}" matched ${matched.length} newly available session${matched.length > 1 ? 's' : ''}:\n\n${lines}\n\nRegister now: ${PAGE_URL}`;
-      // Per-user email when using Supabase; fall back to global ALERT_EMAIL
-      const to = (useSupabase && rule.user_email) ? rule.user_email : alertEmail;
+      const subject    = `🏐 [${rule.label}] ${matched.length} spot${matched.length > 1 ? 's' : ''} just opened!`;
+      const disableUrl = `https://christopherkwok.github.io/vb-tix_app/?disable_token=${rule.disable_token}`;
+      const body       = `Your alert "${rule.label}" matched ${matched.length} newly available session${matched.length > 1 ? 's' : ''}:\n\n${lines}\n\nRegister now: ${PAGE_URL}\n\n---\nTo disable this alert: ${disableUrl}`;
+      const to = rule.user_email;
       console.log(`  📧 Emailing "${rule.label}" → ${to} (${matched.length} match(es))`);
       await sendEmail(subject, body, to, resendKey);
     }
   }
 
   // Write updated data
-  if (useSupabase) {
-    const { status, data: writeResult } = await supabaseRequest(
-      'POST', '/scrape_results',
-      { id: 1, games: allGames, last_scrape: new Date().toISOString(), errors },
-      { 'Prefer': 'resolution=merge-duplicates' }
-    );
-    if (status < 200 || status >= 300) {
-      throw new Error(`Supabase write failed HTTP ${status}: ${JSON.stringify(writeResult)}`);
-    }
-    console.log(`  ✓ Supabase scrape_results updated (HTTP ${status})`);
-  } else {
-    fs.mkdirSync(path.join(__dirname, 'docs'), { recursive: true });
-    fs.writeFileSync(dataFile, JSON.stringify({ games: allGames, lastScrape: new Date().toISOString(), errors }, null, 2), 'utf8');
-    console.log(`  ✓ docs/games.json updated`);
+  const { status, data: writeResult } = await supabaseRequest(
+    'POST', '/scrape_results',
+    { id: 1, games: allGames, last_scrape: new Date().toISOString(), errors },
+    { 'Prefer': 'resolution=merge-duplicates' }
+  );
+  if (status < 200 || status >= 300) {
+    throw new Error(`Supabase write failed HTTP ${status}: ${JSON.stringify(writeResult)}`);
   }
+  console.log(`  ✓ Supabase scrape_results updated (HTTP ${status})`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

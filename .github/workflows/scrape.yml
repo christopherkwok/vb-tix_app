@@ -8,18 +8,12 @@ on:
         required: false
         default: 'false'
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   scrape:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -35,22 +29,3 @@ jobs:
           SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-      - name: Commit updated game data (file-based mode only)
-        if: env.SUPABASE_URL == ''
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/games.json
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-          BRANCH="data/update-$(date +%Y%m%d-%H%M%S)"
-          git checkout -b "$BRANCH"
-          git commit -m "chore: update games data"
-          git push origin "$BRANCH"
-          gh pr create --title "chore: update games data" --body "" --base main --head "$BRANCH"
-          gh pr merge "$BRANCH" --merge --delete-branch
-        env:
-          GH_TOKEN:     ${{ secrets.GITHUB_TOKEN }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
