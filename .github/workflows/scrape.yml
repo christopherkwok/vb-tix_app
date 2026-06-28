@@ -23,7 +23,8 @@ jobs:
       - name: Run scraper
         run: node scraper.js
         env:
-          RESEND_KEY:          ${{ secrets.RESEND_KEY }}
+          BREVO_KEY:           ${{ secrets.BREVO_KEY }}
+          BREVO_SENDER:        ${{ secrets.BREVO_SENDER }}
           ALERT_EMAIL:         ${{ secrets.ALERT_EMAIL }}
           TEST_EMAIL:          ${{ github.event.inputs.test_email }}
           SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}

@@ -12,7 +12,7 @@ Scrapes the [NYUrban open play schedule](https://www.nyurban.com/?page_id=400&fi
 - Game data loads publicly — no login required
 - Contextual multiselect filters — Difficulty, Court, Time dropdowns show only options present in current view
 - Multi-key sort — click any sort chip to add it; click again to reverse; rank badge shows priority
-- Email alerts — rule-based notifications via Resend; configure in the in-app Alerts panel
+- Email alerts — rule-based notifications via Brevo; configure in the in-app Alerts panel
 - Magic link sign-in — no password; each user manages their own alert rules
 - One-click unsubscribe — each alert email includes a link to disable that rule without logging in
 
@@ -28,7 +28,7 @@ cron-job.org (every 10 min)
         → reads enabled alert_rules from Supabase
         → scrapes all 5 venues via NYUrban AJAX endpoint
         → upserts game data to Supabase scrape_results table
-        → for each rule with newly-matched spots: sends email via Resend HTTP API
+        → for each rule with newly-matched spots: sends email via Brevo HTTP API
           (email includes a one-click disable link with a unique disable_token)
 
 GitHub Pages (docs/index.html)
@@ -37,7 +37,7 @@ GitHub Pages (docs/index.html)
     → Alerts button: opens side panel
         → signed out: shows magic link sign-in form
         → signed in: shows alert rules (CRUD) for the current user
-    → magic link flow: user enters email → Supabase sends link via Resend SMTP
+    → magic link flow: user enters email → Supabase sends link via Brevo SMTP
       → user clicks link → redirected back to app → onAuthStateChange fires → panel refreshes
 
 Supabase Edge Function (disable-rule)
@@ -61,10 +61,10 @@ The anon key is safe to commit publicly because Row Level Security prevents it f
 
 | Path | Used for | Sender address | Requires verified domain? |
 |------|----------|---------------|--------------------------|
-| Resend HTTP API | Scraper alert emails | `onboarding@resend.dev` | No |
-| Resend SMTP (via Supabase) | Magic link emails | Your verified domain | Yes |
+| Brevo HTTP API | Scraper alert emails | Your verified Brevo sender email | No — sender email verification only |
+| Brevo SMTP (via Supabase) | Magic link emails | Your verified Brevo sender email | No — sender email verification only |
 
-The scraper calls the Resend HTTP API directly (`api.resend.com/emails`) using `onboarding@resend.dev` as the sender — this works on Resend's free tier without domain verification. Supabase's SMTP path for magic links requires a verified domain as the sender address.
+Both paths use Brevo. The scraper calls the Brevo HTTP API (`api.brevo.com/v3/smtp/email`) with a `BREVO_KEY` and `BREVO_SENDER`. Supabase sends magic links via Brevo SMTP using a separate SMTP key. Neither requires full domain verification — only the sender email address must be verified in Brevo (Brevo → Senders & IP → Senders).
 
 ---
 
@@ -205,11 +205,18 @@ https://YOUR_USERNAME.github.io/vb-tix_app/
 **Invite a user:**
 Authentication → Users → **Invite user** → enter their email. They receive a magic link; no password needed.
 
-### 7. Set up Resend
+### 7. Set up Brevo
 
-Sign up at [resend.com](https://resend.com) (free, 3,000 emails/month, no CC). Copy your API key (`re_...`).
+Sign up at [brevo.com](https://brevo.com) (free, 300 emails/day, 9,000/month, no CC).
 
-For magic link emails via SMTP, go to **Domains** in the Resend dashboard and verify a domain you own — this is required for the SMTP sender address. Scraper alert emails use `onboarding@resend.dev` via the HTTP API and do not require domain verification.
+**Verify a sender email address** (no domain required):
+Brevo → Senders & IP → Senders → **Add a sender** → enter the email address you want to send from → Brevo sends a confirmation email → click the link to verify.
+
+**Get your API key** (for scraper alert emails):
+Brevo → SMTP & API → **API Keys** tab → Generate a new API key. Copy it.
+
+**Get your SMTP key** (for Supabase magic links — separate from the API key):
+Brevo → SMTP & API → **SMTP** tab → Generate a new SMTP key. Copy it.
 
 ### 8. Configure Supabase SMTP
 
@@ -217,16 +224,16 @@ Supabase → Authentication → **SMTP Settings** → enable custom SMTP:
 
 | Field | Value |
 |-------|-------|
-| Host | `smtp.resend.com` |
-| Port | `465` |
-| Username | `resend` |
-| Password | Your Resend API key (`re_...`) |
-| Sender email | `noreply@yourdomain.com` (must be verified in Resend) |
+| Host | `smtp-relay.brevo.com` |
+| Port | `587` |
+| Username | Your Brevo account login email |
+| Password | Your Brevo SMTP key (from SMTP & API → SMTP tab) |
+| Sender email | Your verified Brevo sender email |
 | Sender name | `NYUrban Alerts` (or anything you like) |
 
-Save, then test by triggering a sign-in from the Alerts panel.
+Save, then test by inviting a user or triggering a sign-in from the Alerts panel.
 
-> The SMTP username is always the literal string `resend` — not your email or account name.
+> The SMTP username for Brevo is your account email address — not a fixed string.
 
 ### 9. Deploy the Edge Function
 
@@ -247,7 +254,8 @@ Repo → Settings → Secrets and variables → Actions → **New repository sec
 |--------|----------|-------|
 | `SUPABASE_URL` | Yes | Your Supabase project URL (e.g. `https://abcdef.supabase.co`) |
 | `SUPABASE_SERVICE_KEY` | Yes | Project Settings → API → **service_role** key — never expose publicly |
-| `RESEND_KEY` | Yes | Your Resend API key (`re_...`) |
+| `BREVO_KEY` | Yes | Brevo API key (Brevo → SMTP & API → API Keys tab) |
+| `BREVO_SENDER` | Yes | Your verified Brevo sender email address |
 | `ALERT_EMAIL` | Optional | Email address to receive test emails (used only in test-email mode) |
 
 ### 11. Set up reliable cron via cron-job.org
@@ -298,7 +306,7 @@ docs/
                             # SUPABASE_URL and SUPABASE_ANON_KEY hardcoded near top of <script>
 scraper.js                  # GitHub Actions scraper — zero npm dependencies
                             # Uses SUPABASE_URL + SUPABASE_SERVICE_KEY env vars
-                            # Sends alert emails via Resend HTTP API (onboarding@resend.dev)
+                            # Sends alert emails via Brevo HTTP API (BREVO_KEY + BREVO_SENDER)
 supabase/
 └── functions/
     └── disable-rule/
@@ -322,7 +330,7 @@ debug/                      # One-shot diagnostic scripts for AJAX endpoint issu
 | Supabase auth emails | 4/hour | Fine for a small group |
 | Supabase API requests | No hard cap | Polling every 5 min ≈ 300/day/user |
 | Supabase project pausing | After 7 days inactivity | Won't happen — cron keeps it active |
-| Resend emails | 3,000/month | Only sends on matched alerts |
+| Brevo emails | 300/day, 9,000/month | Only sends on matched alerts |
 | GitHub Actions minutes | 2,000 min/month | ~30 sec/run × 144 runs/day ≈ 72 min/day |
 | cron-job.org | Free | Unlimited triggers |
 
@@ -398,7 +406,7 @@ Each script saves raw HTML to `debug/debug-output/`.
 |---------|-----|
 | "Could not load game data" on page load | Trigger scraper manually: Actions → Scrape NYUrban → Run workflow |
 | Game data not updating | Check GitHub Actions logs; verify `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` secrets are set |
-| Sign-in email not arriving | Supabase → Logs → Auth for SMTP error; re-enter Resend API key as SMTP password; confirm sender email is a verified Resend domain |
+| Sign-in email not arriving | Supabase → Logs → Auth for SMTP error; confirm Brevo SMTP key is in the Password field (not the API key); confirm sender email is verified in Brevo → Senders & IP |
 | Magic link redirects to wrong URL | Add Pages URL to Supabase → Auth → URL Configuration → Redirect URLs |
 | Edge Function returns 401 | JWT verification must be turned off on the `disable-rule` function |
 | Disable link shows "already used" | Rule is already disabled — re-enable it from the Alerts panel |
