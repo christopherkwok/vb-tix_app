@@ -146,19 +146,24 @@ function gameMatchesRule(game, rule) {
       && matchesFilter(game.court, f.court, true);
 }
 
-// ── Email via Resend ───────────────────────────────────────────────────────────
-function sendEmail(subject, body, to, resendKey) {
+// ── Email via Brevo ────────────────────────────────────────────────────────────
+function sendEmail(subject, body, to, brevoKey, brevoSender) {
   return new Promise((resolve) => {
-    if (!resendKey || !to) { console.log('[email] RESEND_KEY or ALERT_EMAIL not set — skipping'); resolve(); return; }
-    const payload = JSON.stringify({ from: 'onboarding@resend.dev', to: [to], subject, text: body });
+    if (!brevoKey || !to || !brevoSender) { console.log('[email] BREVO_KEY, BREVO_SENDER, or recipient not set — skipping'); resolve(); return; }
+    const payload = JSON.stringify({
+      sender    : { email: brevoSender, name: 'NYUrban Alerts' },
+      to        : [{ email: to }],
+      subject,
+      textContent: body,
+    });
     const req = https.request({
-      hostname: 'api.resend.com', path: '/emails', method: 'POST',
-      headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+      hostname: 'api.brevo.com', path: '/v3/smtp/email', method: 'POST',
+      headers: { 'api-key': brevoKey, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
     }, res => {
       let d = ''; res.on('data', c => d += c);
-      res.on('end', () => { console.log(`[email] Resend ${res.statusCode}: ${d.slice(0, 80)}`); resolve(); });
+      res.on('end', () => { console.log(`[email] Brevo ${res.statusCode}: ${d.slice(0, 80)}`); resolve(); });
     });
-    req.on('error', e => { console.error('[email] Resend error:', e.message); resolve(); });
+    req.on('error', e => { console.error('[email] Brevo error:', e.message); resolve(); });
     req.write(payload); req.end();
   });
 }
@@ -195,8 +200,9 @@ function supabaseRequest(method, path, body, extraHeaders = {}) {
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 async function main() {
-  const resendKey  = process.env.RESEND_KEY  || '';
-  const alertEmail = process.env.ALERT_EMAIL || '';
+  const brevoKey    = process.env.BREVO_KEY    || '';
+  const brevoSender = process.env.BREVO_SENDER || '';
+  const alertEmail  = process.env.ALERT_EMAIL  || '';
 
   // Test-email mode: send a delivery check and exit without scraping
   if (process.argv.includes('--test-email') || process.env.TEST_EMAIL === 'true') {
@@ -205,7 +211,8 @@ async function main() {
       '🏐 NYUrban Alert — test email',
       `This is a test from the NYUrban Volleyball Tracker.\n\nIf you received this, email delivery is working correctly.\n\nTracker: ${PAGE_URL}`,
       alertEmail,
-      resendKey
+      brevoKey,
+      brevoSender
     );
     console.log('[test-email] Done.');
     return;
@@ -255,7 +262,7 @@ async function main() {
       const body       = `Your alert "${rule.label}" matched ${matched.length} newly available session${matched.length > 1 ? 's' : ''}:\n\n${lines}\n\nRegister now: ${PAGE_URL}\n\n---\nTo disable this alert: ${disableUrl}`;
       const to = rule.user_email;
       console.log(`  📧 Emailing "${rule.label}" → ${to} (${matched.length} match(es))`);
-      await sendEmail(subject, body, to, resendKey);
+      await sendEmail(subject, body, to, brevoKey, brevoSender);
     }
   }
 
