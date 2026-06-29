@@ -234,7 +234,7 @@ Supabase → Authentication → **SMTP Settings** → enable custom SMTP:
 |-------|-------|
 | Host | `smtp-relay.brevo.com` |
 | Port | `587` |
-| Username | Your Brevo account login email |
+| Username | Your Brevo SMTP login — found in Brevo → SMTP & API → SMTP tab → "Your SMTP Settings" (personal accounts get an assigned login like `b05902001@smtp-brevo.com`, not your account email) |
 | Password | Your Brevo SMTP key (from SMTP & API → SMTP tab) |
 | Sender email | Your verified Brevo sender email |
 | Sender name | `NYUrban Alerts` (or anything you like) |
@@ -411,7 +411,7 @@ Each script saves raw HTML to `debug/debug-output/`.
 |---------|-----|
 | "Could not load game data" on page load | Trigger scraper manually: Actions → Scrape NYUrban → Run workflow |
 | Game data not updating | Check GitHub Actions logs; verify `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` secrets are set |
-| Sign-in email not arriving | Supabase → Logs → Auth for SMTP error; confirm Brevo SMTP key is in the Password field (not the API key); confirm sender email is verified in Brevo → Senders & IP |
+| Sign-in email not arriving | Supabase → Logs → Auth for SMTP error; confirm Brevo SMTP key (`xsmtpsib-...`) is in the Password field (not the API key); confirm Username is the Brevo-assigned SMTP login (Brevo → SMTP & API → SMTP tab → "Your SMTP Settings"), not your account email |
 | Magic link redirects to wrong URL | Add Pages URL to Supabase → Auth → URL Configuration → Redirect URLs |
 | Edge Function returns 401 | JWT verification must be turned off on the `disable-rule` function |
 | Disable link shows "already used" | Rule is already disabled — re-enable it from the Alerts panel |
