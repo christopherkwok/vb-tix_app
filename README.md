@@ -66,6 +66,14 @@ The anon key is safe to commit publicly because Row Level Security prevents it f
 
 Both paths use Brevo. The scraper calls the Brevo HTTP API (`api.brevo.com/v3/smtp/email`) with a `BREVO_KEY` and `BREVO_SENDER`. Supabase sends magic links via Brevo SMTP using a separate SMTP key. Neither requires full domain verification — only the sender email address must be verified in Brevo (Brevo → Senders & IP → Senders).
 
+**How alert emails appear to recipients:**
+
+Alert emails arrive with the sender displayed as:
+```
+NYUrban Alerts <vbtixalerts@11557122.brevosend.com>
+```
+The display name (`NYUrban Alerts`) is set in `BREVO_SENDER` config. The `brevosend.com` address is Brevo's relay domain — this is normal when sending from a verified Gmail address without full custom domain authentication. Recipients cannot reply directly; the email is notification-only.
+
 ---
 
 ## Database schema
@@ -271,18 +279,17 @@ Repository permissions needed:
 
 Copy the token.
 
-**Deploy the Cloudflare Worker:**
+**Create a Cloudflare account:** Sign up at [cloudflare.com](https://cloudflare.com) (free, no CC).
 
-The Worker script is already in the repo at `workers/trigger/index.js` and `wrangler.toml`. Run these commands once from the repo root:
+**Create the Worker (via Cloudflare dashboard — no CLI required):**
 
-```bash
-npm install -g wrangler       # install Wrangler CLI (or use npx wrangler)
-wrangler login                # opens browser — authorize your Cloudflare account
-wrangler secret put GITHUB_PAT  # paste the PAT from the step above
-wrangler deploy               # deploys the Worker and registers the cron trigger
-```
+1. Cloudflare dashboard → **Workers & Pages** → **Create** → **Create Worker**
+2. Name it `vb-tix-cron` → click **Deploy**
+3. Click **Edit code** → delete the placeholder and paste the contents of [`workers/trigger/index.js`](workers/trigger/index.js) → **Save and deploy**
+4. Go to the Worker → **Settings** → **Triggers** → **Cron Triggers** → **Add Cron Trigger** → enter `*/10 * * * *` → **Add Trigger**
+5. Go to the Worker → **Settings** → **Variables and Secrets** → **Add** → type: **Secret** → name: `GITHUB_PAT` → paste the PAT → **Deploy**
 
-Verify in Cloudflare dashboard → Workers & Pages → `vb-tix-cron` → **Triggers** tab — the cron `*/10 * * * *` should be listed. A successful dispatch from the Worker logs `GitHub dispatch: 204`.
+Verify in the **Triggers** tab that `*/10 * * * *` is listed. A successful dispatch logs `GitHub dispatch: 204` in the Worker's logs.
 
 > The PAT is stored only as a Cloudflare Worker secret. It is not in the repo, GitHub secrets, or Supabase.
 
