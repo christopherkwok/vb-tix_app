@@ -21,7 +21,7 @@ Scrapes the [NYUrban open play schedule](https://www.nyurban.com/?page_id=400&fi
 ## Architecture overview
 
 ```
-cron-job.org (every 10 min)
+Cloudflare Worker cron (*/10 * * * *)
     → POST GitHub Actions API → triggers scrape.yml (workflow_dispatch)
     → node scraper.js
         → reads previous scrape_results from Supabase (to detect newly-opened spots)
@@ -258,9 +258,9 @@ Repo → Settings → Secrets and variables → Actions → **New repository sec
 | `BREVO_SENDER` | Yes | Your verified Brevo sender email address |
 | `ALERT_EMAIL` | Optional | Email address to receive test emails (used only in test-email mode) |
 
-### 11. Set up reliable cron via cron-job.org
+### 11. Set up reliable cron via Cloudflare Workers
 
-GitHub's built-in `on: schedule` cron is often delayed 15–30 min or silently skipped on free accounts. Use [cron-job.org](https://cron-job.org) (free, no CC) to trigger the workflow via `workflow_dispatch` instead — this goes into a higher-priority queue and fires reliably.
+GitHub's built-in `on: schedule` cron is often delayed 15–30 min or silently skipped on free accounts. A Cloudflare Worker with a cron trigger fires reliably every 10 minutes and is more secure than a third-party service — the PAT is stored as an encrypted Cloudflare secret, never on an external platform.
 
 **Create a GitHub Personal Access Token (fine-grained):**
 GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token
@@ -271,26 +271,20 @@ Repository permissions needed:
 
 Copy the token.
 
-**Create a cronjob at cron-job.org:**
+**Deploy the Cloudflare Worker:**
 
-| Field | Value |
-|-------|-------|
-| URL | `https://api.github.com/repos/YOUR_USERNAME/vb-tix_app/actions/workflows/scrape.yml/dispatches` |
-| Execution schedule | Every 10 minutes |
-| Request method | `POST` |
-| Request body | `{"ref":"main"}` |
+The Worker script is already in the repo at `workers/trigger/index.js` and `wrangler.toml`. Run these commands once from the repo root:
 
-Under **Headers**, add:
+```bash
+npm install -g wrangler       # install Wrangler CLI (or use npx wrangler)
+wrangler login                # opens browser — authorize your Cloudflare account
+wrangler secret put GITHUB_PAT  # paste the PAT from the step above
+wrangler deploy               # deploys the Worker and registers the cron trigger
+```
 
-| Key | Value |
-|-----|-------|
-| `Authorization` | `Bearer YOUR_GITHUB_PAT` |
-| `Accept` | `application/vnd.github+json` |
-| `Content-Type` | `application/json` |
+Verify in Cloudflare dashboard → Workers & Pages → `vb-tix-cron` → **Triggers** tab — the cron `*/10 * * * *` should be listed. A successful dispatch from the Worker logs `GitHub dispatch: 204`.
 
-A successful trigger returns HTTP 204. cron-job.org shows the response code in its job history — confirm this before assuming the cron is working.
-
-> The PAT is stored only in cron-job.org. It is not in the repo, GitHub secrets, or Supabase.
+> The PAT is stored only as a Cloudflare Worker secret. It is not in the repo, GitHub secrets, or Supabase.
 
 ### 12. Trigger the first scrape
 
@@ -307,6 +301,10 @@ docs/
 scraper.js                  # GitHub Actions scraper — zero npm dependencies
                             # Uses SUPABASE_URL + SUPABASE_SERVICE_KEY env vars
                             # Sends alert emails via Brevo HTTP API (BREVO_KEY + BREVO_SENDER)
+workers/
+└── trigger/
+    └── index.js            # Cloudflare Worker — fires every 10 min, POSTs to GitHub Actions API
+wrangler.toml               # Cloudflare Workers config — cron schedule + Worker entrypoint
 supabase/
 └── functions/
     └── disable-rule/
@@ -315,7 +313,7 @@ supabase/
                             # Called by frontend with ?token=<disable_token>
 .github/
 └── workflows/
-    ├── scrape.yml          # Scraper workflow — triggered by cron-job.org via workflow_dispatch
+    ├── scrape.yml          # Scraper workflow — triggered by Cloudflare Worker via workflow_dispatch
     └── deploy-pages.yml    # Manual Pages rebuild — run via Actions if Pages gets stale
 debug/                      # One-shot diagnostic scripts for AJAX endpoint issues
 ```
@@ -332,7 +330,7 @@ debug/                      # One-shot diagnostic scripts for AJAX endpoint issu
 | Supabase project pausing | After 7 days inactivity | Won't happen — cron keeps it active |
 | Brevo emails | 300/day, 9,000/month | Only sends on matched alerts |
 | GitHub Actions minutes | 2,000 min/month | ~30 sec/run × 144 runs/day ≈ 72 min/day |
-| cron-job.org | Free | Unlimited triggers |
+| Cloudflare Workers | Free (100k req/day) | 144 triggers/day — well within limit |
 
 ---
 
@@ -410,7 +408,7 @@ Each script saves raw HTML to `debug/debug-output/`.
 | Magic link redirects to wrong URL | Add Pages URL to Supabase → Auth → URL Configuration → Redirect URLs |
 | Edge Function returns 401 | JWT verification must be turned off on the `disable-rule` function |
 | Disable link shows "already used" | Rule is already disabled — re-enable it from the Alerts panel |
-| cron-job.org returns non-204 | Verify PAT has Actions Read/Write permission and hasn't expired; confirm request body is `{"ref":"main"}` |
+| Cloudflare Worker logs non-204 | Verify PAT has Actions Read/Write permission and hasn't expired; run `wrangler secret put GITHUB_PAT` to update it |
 | Pages shows stale content after merge | Run the Deploy Pages workflow manually: Actions → Deploy Pages → Run workflow |
 
 ---
