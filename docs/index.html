@@ -493,7 +493,7 @@
           <button class="btn btn-primary btn-sm" onclick="requestNotifications()">Enable Notifications</button>
         </div>
         <div id="notif-panel-granted" style="display:none;font-size:.82rem;color:var(--gray500)">✓ Browser notifications enabled</div>
-        <div id="notif-panel-unsupported" style="display:none;font-size:.78rem;color:var(--gray400);font-style:italic">Browser notifications not supported in this browser.</div>
+        <div id="notif-panel-unsupported" style="display:none;font-size:.78rem;color:var(--gray400);font-style:italic">Browser notifications blocked or not supported — check your browser settings.</div>
       </div>
 
       <!-- Login section (shown when signed out) -->
@@ -519,15 +519,16 @@
       <!-- Signed-in section -->
       <div id="panel-signed-in-section" style="display:none">
 
-      <!-- Signed-in user -->
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem .75rem;background:var(--gray50);border-radius:8px;font-size:.82rem">
-        <span style="color:var(--gray500)">Signed in as <strong id="panel-user-email" style="color:var(--gray700)"></strong></span>
-        <button class="btn btn-ghost btn-sm" onclick="signOut()" style="font-size:.78rem;padding:.2rem .55rem">Sign out</button>
-      </div>
-
       <!-- Alert rules list -->
       <div class="panel-section">
         <div class="panel-section-title">Email Alerts</div>
+
+        <!-- Signed-in user -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem .75rem;background:var(--gray50);border-radius:8px;font-size:.82rem;margin-bottom:.5rem">
+          <span style="color:var(--gray500)">Signed in as <strong id="panel-user-email" style="color:var(--gray700)"></strong></span>
+          <button class="btn btn-ghost btn-sm" onclick="signOut()" style="font-size:.78rem;padding:.2rem .55rem">Sign out</button>
+        </div>
+
         <p style="font-size:.78rem;color:var(--gray500);margin:0">An email is sent to you when a session becomes newly available and matches <em>all</em> set filters. Leave a filter blank to match anything.</p>
         <div class="rules-list" id="rules-list">
           <div style="font-size:.82rem;color:var(--gray500);font-style:italic">Loading…</div>
@@ -689,6 +690,9 @@ function checkNotifPermission() {
   const def = document.getElementById('notif-panel-default');
   const ok  = document.getElementById('notif-panel-granted');
   const no  = document.getElementById('notif-panel-unsupported');
+  if (def) def.style.display = 'none';
+  if (ok)  ok.style.display  = 'none';
+  if (no)  no.style.display  = 'none';
   if (!('Notification' in window)) {
     if (no) no.style.display = 'block';
     return;
@@ -696,7 +700,9 @@ function checkNotifPermission() {
   if (Notification.permission === 'granted') {
     notifGranted = true;
     if (ok) ok.style.display = 'block';
-  } else if (Notification.permission === 'default') {
+  } else if (Notification.permission === 'denied') {
+    if (no) no.style.display = 'block';
+  } else {
     if (def) def.style.display = 'block';
   }
 }
@@ -1055,6 +1061,7 @@ let ruleFormFilters = { gym: new Set(), time: new Set(), difficulty: new Set(), 
 
 function openAlertsPanel() {
   document.getElementById('alerts-panel').classList.add('open');
+  checkNotifPermission();
   refreshPanelAuthState();
 }
 function closeAlertsPanel() {
