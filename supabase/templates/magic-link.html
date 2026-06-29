@@ -1,0 +1,51 @@
+<!--
+  Magic link sign-in email template for NYUrban Volleyball Tracker.
+
+  HOW TO APPLY (manual step — this file is NOT deployed automatically):
+    Supabase dashboard → Authentication → Email Templates → "Magic Link"
+    1. Set Subject to: Your sign-in link for NYUrban Volleyball Tracker
+    2. Paste the HTML below into the body editor
+    3. Click Save
+
+  Supabase variables used:
+    {{ .ConfirmationURL }} — the sign-in link (injected by Supabase)
+    {{ .SiteURL }}         — the configured site URL
+-->
+<div style="background:#F5F0E8;padding:2rem 1rem;font-family:system-ui,Arial,sans-serif">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+
+    <!-- Header -->
+    <div style="background:#2D5016;padding:1.5rem 2rem">
+      <div style="font-size:1.2rem;font-weight:700;color:#C8A84B;letter-spacing:.01em">🏐 NYUrban Volleyball Tracker</div>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:2rem">
+      <h2 style="font-size:1.15rem;font-weight:600;color:#111827;margin:0 0 .75rem">Your sign-in link</h2>
+      <p style="color:#6B7280;font-size:.92rem;line-height:1.6;margin:0 0 1.75rem">
+        Click the button below to sign in to the NYUrban Volleyball Tracker.
+        No password required — this link signs you in directly.
+      </p>
+
+      <!-- CTA -->
+      <div style="text-align:center;margin-bottom:1.75rem">
+        <a href="{{ .ConfirmationURL }}"
+           style="display:inline-block;background:#C8A84B;color:#1A3A5C;font-weight:700;font-size:.95rem;padding:.75rem 2rem;border-radius:8px;text-decoration:none">
+          Sign in ↗
+        </a>
+      </div>
+
+      <p style="color:#9CA3AF;font-size:.78rem;text-align:center;margin:0">
+        This link expires in 1 hour. If you didn't request this, you can safely ignore this email.
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div style="background:#F9FAFB;padding:1rem 2rem;border-top:1px solid #F3F4F6;text-align:center">
+      <p style="color:#9CA3AF;font-size:.75rem;margin:0">
+        Sent by NYUrban Volleyball Tracker · <a href="{{ .SiteURL }}" style="color:#9CA3AF">Open app</a>
+      </p>
+    </div>
+
+  </div>
+</div>
