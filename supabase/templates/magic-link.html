@@ -1,3 +1,16 @@
+<!--
+  Magic link sign-in email template for NYUrban Volleyball Tracker.
+
+  HOW TO APPLY (manual step — this file is NOT deployed automatically):
+    Supabase dashboard → Authentication → Email Templates → "Magic Link"
+    1. Set Subject to: Your sign-in link for NYUrban Volleyball Tracker
+    2. Paste the HTML below into the body editor
+    3. Click Save
+
+  Supabase variables used:
+    {{ .ConfirmationURL }} — the sign-in link (injected by Supabase)
+    {{ .SiteURL }}         — the configured site URL
+-->
 <div style="background:#F5F0E8;padding:2rem 1rem;font-family:system-ui,Arial,sans-serif">
   <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
 

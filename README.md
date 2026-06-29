@@ -210,6 +210,16 @@ Authentication → URL Configuration → add to Redirect URLs:
 https://YOUR_USERNAME.github.io/vb-tix_app/
 ```
 
+**Customize email templates (optional but recommended):**
+Supabase → Authentication → **Email Templates** — two templates are used by this app:
+
+| Template | Subject |
+|----------|---------|
+| **Invite user** | `You've been invited to NYUrban Volleyball Tracker` |
+| **Magic Link** | `Your sign-in link for NYUrban Volleyball Tracker` |
+
+Paste the HTML from [`supabase/templates/invite.html`](supabase/templates/invite.html) and [`supabase/templates/magic-link.html`](supabase/templates/magic-link.html) into the respective template editors and save. These files are the source of truth for the templates — they are **not** deployed automatically and must be applied manually in the Supabase dashboard.
+
 **Invite a user:**
 Authentication → Users → **Invite user** → enter their email. They receive a magic link; no password needed.
 
@@ -313,11 +323,15 @@ workers/
     └── index.js            # Cloudflare Worker — fires every 5 min, POSTs to GitHub Actions API
 wrangler.toml               # Cloudflare Workers config — cron schedule + Worker entrypoint
 supabase/
-└── functions/
-    └── disable-rule/
-        └── index.ts        # Edge Function: one-click alert disable from email link
-                            # Deployed with JWT verification OFF
-                            # Called by frontend with ?token=<disable_token>
+├── functions/
+│   └── disable-rule/
+│       └── index.ts        # Edge Function: one-click alert disable from email link
+│                           # Deployed with JWT verification OFF
+│                           # Called by frontend with ?token=<disable_token>
+└── templates/
+    ├── invite.html         # Invite user email template — paste into Supabase → Auth → Email Templates
+    └── magic-link.html     # Magic link sign-in template — paste into Supabase → Auth → Email Templates
+                            # NOT auto-deployed; must be applied manually in the Supabase dashboard
 .github/
 └── workflows/
     ├── scrape.yml          # Scraper workflow — triggered by Cloudflare Worker via workflow_dispatch
