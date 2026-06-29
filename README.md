@@ -21,7 +21,7 @@ Scrapes the [NYUrban open play schedule](https://www.nyurban.com/?page_id=400&fi
 ## Architecture overview
 
 ```
-Cloudflare Worker cron (*/10 * * * *)
+Cloudflare Worker cron (*/5 * * * *)
     → POST GitHub Actions API → triggers scrape.yml (workflow_dispatch)
     → node scraper.js
         → reads previous scrape_results from Supabase (to detect newly-opened spots)
@@ -268,7 +268,7 @@ Repo → Settings → Secrets and variables → Actions → **New repository sec
 
 ### 11. Set up reliable cron via Cloudflare Workers
 
-GitHub's built-in `on: schedule` cron is often delayed 15–30 min or silently skipped on free accounts. A Cloudflare Worker with a cron trigger fires reliably every 10 minutes and is more secure than a third-party service — the PAT is stored as an encrypted Cloudflare secret, never on an external platform.
+GitHub's built-in `on: schedule` cron is often delayed 15–30 min or silently skipped on free accounts. A Cloudflare Worker with a cron trigger fires reliably every 5 minutes and is more secure than a third-party service — the PAT is stored as an encrypted Cloudflare secret, never on an external platform.
 
 **Create a GitHub Personal Access Token (fine-grained):**
 GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token
@@ -286,10 +286,10 @@ Copy the token.
 1. Cloudflare dashboard → **Workers & Pages** → **Create** → **Create Worker**
 2. Name it `vb-tix-cron` → click **Deploy**
 3. Click **Edit code** → delete the placeholder and paste the contents of [`workers/trigger/index.js`](workers/trigger/index.js) → **Save and deploy**
-4. Go to the Worker → **Settings** → **Triggers** → **Cron Triggers** → **Add Cron Trigger** → enter `*/10 * * * *` → **Add Trigger**
+4. Go to the Worker → **Settings** → **Triggers** → **Cron Triggers** → **Add Cron Trigger** → enter `*/5 * * * *` → **Add Trigger**
 5. Go to the Worker → **Settings** → **Variables and Secrets** → **Add** → type: **Secret** → name: `GITHUB_PAT` → paste the PAT → **Deploy**
 
-Verify in the **Triggers** tab that `*/10 * * * *` is listed. A successful dispatch logs `GitHub dispatch: 204` in the Worker's logs.
+Verify in the **Triggers** tab that `*/5 * * * *` is listed. A successful dispatch logs `GitHub dispatch: 204` in the Worker's logs.
 
 > The PAT is stored only as a Cloudflare Worker secret. It is not in the repo, GitHub secrets, or Supabase.
 
@@ -310,7 +310,7 @@ scraper.js                  # GitHub Actions scraper — zero npm dependencies
                             # Sends alert emails via Brevo HTTP API (BREVO_KEY + BREVO_SENDER)
 workers/
 └── trigger/
-    └── index.js            # Cloudflare Worker — fires every 10 min, POSTs to GitHub Actions API
+    └── index.js            # Cloudflare Worker — fires every 5 min, POSTs to GitHub Actions API
 wrangler.toml               # Cloudflare Workers config — cron schedule + Worker entrypoint
 supabase/
 └── functions/
@@ -336,8 +336,8 @@ debug/                      # One-shot diagnostic scripts for AJAX endpoint issu
 | Supabase API requests | No hard cap | Polling every 5 min ≈ 300/day/user |
 | Supabase project pausing | After 7 days inactivity | Won't happen — cron keeps it active |
 | Brevo emails | 300/day, 9,000/month | Only sends on matched alerts |
-| GitHub Actions minutes | 2,000 min/month | ~30 sec/run × 144 runs/day ≈ 72 min/day |
-| Cloudflare Workers | Free (100k req/day) | 144 triggers/day — well within limit |
+| GitHub Actions minutes | 2,000 min/month | ~30 sec/run × 288 runs/day ≈ 144 min/day |
+| Cloudflare Workers | Free (100k req/day) | 288 triggers/day — well within limit |
 
 ---
 

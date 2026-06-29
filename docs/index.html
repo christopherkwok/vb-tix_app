@@ -346,7 +346,7 @@
       </div>
       <button class="btn btn-outline btn-sm" onclick="openAlertsPanel()">🔔 Alerts</button>
       <button class="btn btn-outline btn-sm" id="logout-btn" onclick="signOut()" style="display:none">Sign out</button>
-      <a class="btn btn-primary btn-sm" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank" rel="noopener">Register ↗</a>
+      <a class="btn btn-primary btn-sm" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank" rel="noopener">Open Play ↗</a>
     </div>
   </div>
 </header>
@@ -363,12 +363,6 @@
       <div class="stat"><div class="stat-num" id="stat-open">—</div><div class="stat-lbl">Available</div></div>
       <div class="stat"><div class="stat-num" id="stat-full">—</div><div class="stat-lbl">Sold out</div></div>
     </div>
-  </div>
-
-  <!-- Notification CTA -->
-  <div class="notif-cta" id="notif-cta" style="display:none">
-    <p>🔔 <strong>Get notified</strong> when new spots open up</p>
-    <button class="btn btn-primary btn-sm" onclick="requestNotifications()">Enable Notifications</button>
   </div>
 
   <!-- New-spots banner -->
@@ -463,7 +457,7 @@
 
   <!-- Meta bar -->
   <div class="meta-bar">
-    <span class="last-updated pending" id="last-updated">⏳ Data not yet available — scraper runs every 10 min</span>
+    <span class="last-updated pending" id="last-updated">⏳ Data not yet available — scraper runs every 5 min</span>
     <span style="font-size:.8rem;color:var(--gray500)" id="filtered-count"></span>
   </div>
 
@@ -486,13 +480,25 @@
 <div class="panel-overlay" id="alerts-panel" onclick="if(event.target===this)closeAlertsPanel()">
   <div class="panel">
     <div class="panel-header">
-      <span class="panel-title">🔔 Email Alerts</span>
+      <span class="panel-title">🔔 Alerts</span>
       <button class="panel-close" onclick="closeAlertsPanel()">✕</button>
     </div>
     <div class="panel-body">
 
+      <!-- Browser notifications section (always visible) -->
+      <div class="panel-section">
+        <div class="panel-section-title">Browser Notifications</div>
+        <div id="notif-panel-default" style="display:none">
+          <p style="font-size:.78rem;color:var(--gray500);margin:0 0 .6rem">Get notified in your browser when new spots open up.</p>
+          <button class="btn btn-primary btn-sm" onclick="requestNotifications()">Enable Notifications</button>
+        </div>
+        <div id="notif-panel-granted" style="display:none;font-size:.82rem;color:var(--gray500)">✓ Browser notifications enabled</div>
+        <div id="notif-panel-unsupported" style="display:none;font-size:.78rem;color:var(--gray400);font-style:italic">Browser notifications not supported in this browser.</div>
+      </div>
+
       <!-- Login section (shown when signed out) -->
       <div id="panel-login-section" style="display:none">
+        <div class="panel-section-title">Email Alerts</div>
         <div style="text-align:center;padding:1rem 0 .5rem">
           <div style="font-size:2rem;margin-bottom:.75rem">🔔</div>
           <p style="font-size:.88rem;color:var(--gray700);margin-bottom:1.25rem">Sign in to set up email alerts when spots open at your preferred venues.</p>
@@ -521,7 +527,7 @@
 
       <!-- Alert rules list -->
       <div class="panel-section">
-        <div class="panel-section-title">Alert rules</div>
+        <div class="panel-section-title">Email Alerts</div>
         <p style="font-size:.78rem;color:var(--gray500);margin:0">An email is sent to you when a session becomes newly available and matches <em>all</em> set filters. Leave a filter blank to match anything.</p>
         <div class="rules-list" id="rules-list">
           <div style="font-size:.82rem;color:var(--gray500);font-style:italic">Loading…</div>
@@ -680,14 +686,30 @@ const MAX_RULES_PER_USER = 5;
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 function checkNotifPermission() {
-  if (!('Notification' in window)) return;
-  if (Notification.permission === 'default') document.getElementById('notif-cta').style.display = 'flex';
-  if (Notification.permission === 'granted') notifGranted = true;
+  const def = document.getElementById('notif-panel-default');
+  const ok  = document.getElementById('notif-panel-granted');
+  const no  = document.getElementById('notif-panel-unsupported');
+  if (!('Notification' in window)) {
+    if (no) no.style.display = 'block';
+    return;
+  }
+  if (Notification.permission === 'granted') {
+    notifGranted = true;
+    if (ok) ok.style.display = 'block';
+  } else if (Notification.permission === 'default') {
+    if (def) def.style.display = 'block';
+  }
 }
 function requestNotifications() {
   Notification.requestPermission().then(p => {
-    if (p === 'granted') { notifGranted = true; document.getElementById('notif-cta').style.display = 'none'; toast('🔔 Notifications enabled!', 'success'); }
-    else toast('Notifications blocked — check browser settings', 'warn');
+    if (p === 'granted') {
+      notifGranted = true;
+      const def = document.getElementById('notif-panel-default');
+      const ok  = document.getElementById('notif-panel-granted');
+      if (def) def.style.display = 'none';
+      if (ok)  ok.style.display  = 'block';
+      toast('🔔 Notifications enabled!', 'success');
+    } else toast('Notifications blocked — check browser settings', 'warn');
   });
 }
 function sendNotification(title, body) {
@@ -942,7 +964,7 @@ function renderGames() {
   <div class="card-footer">
     <span class="card-fee">${game.fee ? '$' + esc(game.fee) : ''}</span>
     <div style="text-align:right">
-      <a class="btn btn-primary btn-sm" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank" rel="noopener">${game.available ? 'Register ↗' : 'View ↗'}</a>
+      <a class="btn btn-primary btn-sm" href="https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1" target="_blank" rel="noopener">${game.available ? 'Book ↗' : 'View ↗'}</a>
       <div class="tab-hint">then click <strong>${esc(game.venueLabel)}</strong></div>
     </div>
   </div>
