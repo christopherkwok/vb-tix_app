@@ -579,7 +579,10 @@
           </div>
         </div>
 
-        <button class="btn btn-ghost btn-sm" id="add-rule-btn" onclick="showAddRuleForm()" style="align-self:flex-start">+ Add rule</button>
+        <div style="display:flex;align-items:center;gap:.5rem;align-self:flex-start">
+          <button class="btn btn-ghost btn-sm" id="add-rule-btn" onclick="showAddRuleForm()">+ Add rule</button>
+          <span id="rule-count-badge" style="font-size:.75rem;color:var(--gray500)"></span>
+        </div>
       </div>
 
       </div><!-- /panel-signed-in-section -->
@@ -672,6 +675,8 @@ let activeDifficulties = new Set();
 let activeCourts       = new Set();
 let activeTimes        = new Set();
 let notifGranted       = false;
+
+const MAX_RULES_PER_USER = 5;
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 function checkNotifPermission() {
@@ -1047,27 +1052,35 @@ function renderRulesList(rules) {
   const container = document.getElementById('rules-list');
   if (!rules.length) {
     container.innerHTML = '<div style="font-size:.82rem;color:var(--gray500);font-style:italic">No rules yet — add one below.</div>';
-    return;
+  } else {
+    container.innerHTML = rules.map(rule => {
+      const tags = Object.entries(rule.filters || {})
+        .filter(([, v]) => v && v.length)
+        .map(([k, v]) => `<span class="rule-filter-tag active">${esc(k)}: ${v.map(esc).join(', ')}</span>`)
+        .join('');
+      return `
+      <div class="rule-card">
+        <div class="rule-card-header">
+          <label class="rule-toggle">
+            <input type="checkbox" ${rule.enabled !== false ? 'checked' : ''} onchange="toggleRule('${esc(rule.id)}', this.checked)">
+            <span class="rule-toggle-slider"></span>
+          </label>
+          <span class="rule-label">${esc(rule.label || 'Unnamed rule')}</span>
+          <button class="btn btn-ghost btn-sm" onclick="editRule('${esc(rule.id)}')" style="padding:.2rem .45rem;font-size:.75rem;flex-shrink:0">Edit</button>
+          <button class="rule-delete" onclick="deleteRule('${esc(rule.id)}')" title="Delete">🗑</button>
+        </div>
+        <div class="rule-filters">${tags || '<span style="font-size:.72rem;color:var(--gray400);font-style:italic">No filters — matches all sessions</span>'}</div>
+      </div>`;
+    }).join('');
   }
-  container.innerHTML = rules.map(rule => {
-    const tags = Object.entries(rule.filters || {})
-      .filter(([, v]) => v && v.length)
-      .map(([k, v]) => `<span class="rule-filter-tag active">${esc(k)}: ${v.map(esc).join(', ')}</span>`)
-      .join('');
-    return `
-    <div class="rule-card">
-      <div class="rule-card-header">
-        <label class="rule-toggle">
-          <input type="checkbox" ${rule.enabled !== false ? 'checked' : ''} onchange="toggleRule('${esc(rule.id)}', this.checked)">
-          <span class="rule-toggle-slider"></span>
-        </label>
-        <span class="rule-label">${esc(rule.label || 'Unnamed rule')}</span>
-        <button class="btn btn-ghost btn-sm" onclick="editRule('${esc(rule.id)}')" style="padding:.2rem .45rem;font-size:.75rem;flex-shrink:0">Edit</button>
-        <button class="rule-delete" onclick="deleteRule('${esc(rule.id)}')" title="Delete">🗑</button>
-      </div>
-      <div class="rule-filters">${tags || '<span style="font-size:.72rem;color:var(--gray400);font-style:italic">No filters — matches all sessions</span>'}</div>
-    </div>`;
-  }).join('');
+  const atLimit = rules.length >= MAX_RULES_PER_USER;
+  const addBtn  = document.getElementById('add-rule-btn');
+  if (addBtn) {
+    addBtn.disabled    = atLimit;
+    addBtn.textContent = atLimit ? 'Limit reached' : '+ Add rule';
+  }
+  const badge = document.getElementById('rule-count-badge');
+  if (badge) badge.textContent = rules.length ? `${rules.length} / ${MAX_RULES_PER_USER} rules` : '';
 }
 
 async function toggleRule(id, enabled) {
@@ -1191,6 +1204,10 @@ setInterval(fetchGames, 300000);
 async function submitRuleForm() {
   const label = document.getElementById('new-rule-label').value.trim();
   if (!label) { toast('Enter a name for this rule', 'warn'); return; }
+  if (!editingRuleId && alertRules.length >= MAX_RULES_PER_USER) {
+    toast(`Rule limit reached (${MAX_RULES_PER_USER} max). Delete a rule to add a new one.`, 'warn');
+    return;
+  }
   const filters = {
     gym:        [...ruleFormFilters.gym],
     date:       editingRuleId ? (alertRules.find(r => r.id === editingRuleId)?.filters?.date || []) : [],
