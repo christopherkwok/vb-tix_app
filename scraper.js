@@ -5,7 +5,7 @@
  * Usage: node scraper.js
  * Scrapes all venues, upserts game data to Supabase, sends email alerts via
  * Brevo for newly-available spots matching per-user rules stored in Supabase.
- * Triggered by Cloudflare Worker cron (*/10 * * * *) via workflow_dispatch. Zero npm dependencies.
+ * Triggered by Cloudflare Worker cron (every 10 min) via workflow_dispatch. Zero npm dependencies.
  */
 
 const https = require('https');
