@@ -537,17 +537,19 @@
         <!-- Add / Edit rule form -->
         <div class="add-rule-form" id="rule-form">
           <div style="font-size:.83rem;font-weight:600;color:var(--gray700)" id="rule-form-title">New rule</div>
+          <div id="rule-catalog-notice" style="display:none;font-size:.78rem;color:var(--warn);padding:.35rem .6rem;background:#FEF3C7;border-radius:6px">No upcoming sessions are currently posted — options shown are from past schedules.</div>
           <div class="field-group">
             <label>Rule name</label>
             <input class="field-input" id="new-rule-label" placeholder="e.g. Lag Intermediate Friday nights">
           </div>
           <div class="field-row">
             <div class="field-group">
-              <label>Gym <span style="font-weight:400;color:var(--gray400)">(partial match)</span></label>
-              <button class="dd-trigger" id="rule-dd-trigger-gym" onclick="toggleRuleDropdown('gym')">
-                <span id="rule-dd-label-gym">Any gym</span><span class="dd-caret">▼</span>
+              <label>Venue <span style="font-weight:400;color:var(--gray400)">(exact match)</span></label>
+              <button class="dd-trigger" id="rule-dd-trigger-venue" onclick="toggleRuleDropdown('venue')">
+                <span id="rule-dd-label-venue">Any venue</span><span class="dd-caret">▼</span>
               </button>
-              <div class="rule-dd-list" id="rule-dd-list-gym"></div>
+              <div class="rule-dd-list" id="rule-dd-list-venue"></div>
+              <div id="rule-venue-notice" style="display:none;font-size:.75rem;color:var(--warn);margin-top:.3rem">No upcoming sessions for this venue — showing past schedule options.</div>
             </div>
             <div class="field-group">
               <label>Time <span style="font-weight:400;color:var(--gray400)">(partial match)</span></label>
@@ -675,7 +677,10 @@ async function signOut() {
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
+const VENUE_LABELS = ['Beacon / Fri', 'Brandeis / Fri', 'Brandeis / Sun', 'Clinics', 'Laguardia / Fri'];
+
 let allGames           = [];
+let knownCombos        = [];
 let activeVenues       = new Set();
 let activeFilter       = 'all';
 let activeDifficulties = new Set();
@@ -1008,10 +1013,11 @@ async function fetchGames() {
   try {
     const { data, error } = await sb
       .from('scrape_results')
-      .select('games,last_scrape,errors')
+      .select('games,last_scrape,errors,catalog')
       .eq('id', 1)
       .single();
     if (error) throw error;
+    knownCombos = (data.catalog && data.catalog.combos) || [];
     const games      = data.games || [];
     const nowAvail   = new Set(games.filter(g => g.available).map(g => g.id));
     const newlyAvail = games.filter(g => g.available && !prevAvailableIds.has(g.id));
@@ -1057,7 +1063,7 @@ async function fetchGames() {
 // ── Alerts panel ──────────────────────────────────────────────────────────────
 let alertRules      = [];
 let editingRuleId   = null;
-let ruleFormFilters = { gym: new Set(), time: new Set(), difficulty: new Set(), court: new Set() };
+let ruleFormFilters = { venue: new Set(), time: new Set(), difficulty: new Set(), court: new Set() };
 
 function openAlertsPanel() {
   document.getElementById('alerts-panel').classList.add('open');
@@ -1083,9 +1089,10 @@ function renderRulesList(rules) {
     container.innerHTML = '<div style="font-size:.82rem;color:var(--gray500);font-style:italic">No rules yet — add one below.</div>';
   } else {
     container.innerHTML = rules.map(rule => {
+      const TAG_LABELS = { venue:'Venue', gym:'Gym', time:'Time', difficulty:'Difficulty', court:'Court' };
       const tags = Object.entries(rule.filters || {})
-        .filter(([, v]) => v && v.length)
-        .map(([k, v]) => `<span class="rule-filter-tag active">${esc(k)}: ${v.map(esc).join(', ')}</span>`)
+        .filter(([k, v]) => k !== 'date' && v && v.length)
+        .map(([k, v]) => `<span class="rule-filter-tag active">${esc(TAG_LABELS[k] || k)}: ${v.map(esc).join(', ')}</span>`)
         .join('');
       return `
       <div class="rule-card">
@@ -1123,7 +1130,7 @@ async function deleteRule(id) {
 
 function showAddRuleForm() {
   editingRuleId   = null;
-  ruleFormFilters = { gym: new Set(), time: new Set(), difficulty: new Set(), court: new Set() };
+  ruleFormFilters = { venue: new Set(), time: new Set(), difficulty: new Set(), court: new Set() };
   document.getElementById('new-rule-label').value     = '';
   document.getElementById('new-rule-enabled').checked = true;
   document.getElementById('rule-form-title').textContent  = 'New rule';
@@ -1138,7 +1145,7 @@ function editRule(id) {
   if (!rule) return;
   editingRuleId   = id;
   ruleFormFilters = {
-    gym:        new Set(rule.filters?.gym        || []),
+    venue:      new Set(rule.filters?.venue      || []),
     time:       new Set(rule.filters?.time       || []),
     difficulty: new Set(rule.filters?.difficulty || []),
     court:      new Set(rule.filters?.court      || []),
@@ -1159,32 +1166,79 @@ function hideRuleForm() {
   closeRuleDropdowns();
 }
 
-function populateRuleFormDropdowns() {
+function buildComboPool() {
+  const live = allGames.map(g => ({
+    venue:      g.venueLabel,
+    time:       normalizeTime(g.time),
+    difficulty: g.difficulty,
+    court:      (g.court && g.court !== 'N/A') ? g.court : null,
+  }));
+  const hist = knownCombos.map(c => ({
+    venue:      c.venue,
+    time:       normalizeTime(c.time),
+    difficulty: c.difficulty,
+    court:      c.court || null,
+  }));
+  const seen = new Set();
+  return [...live, ...hist].filter(c => {
+    const k = `${c.venue}|${c.time}|${c.difficulty}|${c.court ?? ''}`;
+    return seen.has(k) ? false : (seen.add(k), true);
+  });
+}
+
+function populateRuleFormDropdowns(fields) {
+  const pool = buildComboPool();
+  const sv   = [...ruleFormFilters.venue];
+  const st   = [...ruleFormFilters.time];
+  const sd   = [...ruleFormFilters.difficulty];
+
+  const narrow = (vf, tf, df) => pool.filter(c =>
+    (!vf.length || vf.includes(c.venue))      &&
+    (!tf.length || tf.includes(c.time))        &&
+    (!df.length || df.includes(c.difficulty))
+  );
+
   const OPTIONS = {
-    gym:        [...new Set(allGames.map(g => g.gym).filter(Boolean))].sort(),
-    time:       sortTimes([...new Set(allGames.map(g => normalizeTime(g.time)).filter(Boolean))]),
-    difficulty: [...new Set(allGames.map(g => g.difficulty).filter(Boolean))].sort(),
-    court:      [...new Set(allGames.map(g => g.court).filter(Boolean))].sort((a, b) => a === 'N/A' ? 1 : b === 'N/A' ? -1 : a.localeCompare(b, undefined, { numeric: true })),
+    venue:      VENUE_LABELS,
+    time:       sortTimes([...new Set(narrow(sv, [], []).map(c => c.time).filter(Boolean))]),
+    difficulty: [...new Set(narrow(sv, st, []).map(c => c.difficulty).filter(Boolean))].sort(),
+    court:      [...new Set(narrow(sv, st, sd).map(c => c.court).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
   };
-  for (const [field, values] of Object.entries(OPTIONS)) {
+
+  const toRender = fields && fields.length ? fields : ['venue','time','difficulty','court'];
+  for (const field of toRender) {
+    const values   = OPTIONS[field];
     const selected = ruleFormFilters[field];
-    const list = document.getElementById(`rule-dd-list-${field}`);
+    const list     = document.getElementById(`rule-dd-list-${field}`);
     if (!list) continue;
     list.innerHTML = values.length
       ? values.map(v => `<label class="dd-item"><input type="checkbox" value="${esc(v)}" ${selected.has(v) ? 'checked' : ''} onchange="toggleRuleFilter('${field}',this.value,this.checked)"><span>${esc(v)}</span></label>`).join('')
-      : '<div class="dd-empty">No options — game data not loaded yet</div>';
+      : `<div class="dd-empty">${field === 'court' ? 'No court distinction for this selection' : 'No options available'}</div>`;
     updateRuleTriggerLabel(field);
+  }
+
+  // Notices: global (no live games) and per-venue (selected venue has no live sessions)
+  const catalogNotice = document.getElementById('rule-catalog-notice');
+  if (catalogNotice) catalogNotice.style.display = (allGames.length === 0 && pool.length > 0) ? '' : 'none';
+  const venueNotice = document.getElementById('rule-venue-notice');
+  if (venueNotice) {
+    const show = sv.length > 0 &&
+      !allGames.some(g => sv.includes(g.venueLabel)) &&
+      pool.some(c => sv.includes(c.venue));
+    venueNotice.style.display = show ? '' : 'none';
   }
 }
 function toggleRuleFilter(field, value, checked) {
   if (checked) ruleFormFilters[field].add(value); else ruleFormFilters[field].delete(value);
   updateRuleTriggerLabel(field);
+  const downstream = { venue: ['time','difficulty','court'], time: ['difficulty','court'], difficulty: ['court'], court: [] };
+  populateRuleFormDropdowns(downstream[field] || []);
 }
 function updateRuleTriggerLabel(field) {
   const set     = ruleFormFilters[field];
   const trigger = document.getElementById(`rule-dd-trigger-${field}`);
   const label   = document.getElementById(`rule-dd-label-${field}`);
-  const ph = { gym:'Any gym', time:'Any time', difficulty:'Any difficulty', court:'Any court' };
+  const ph = { venue:'Any venue', time:'Any time', difficulty:'Any difficulty', court:'Any court' };
   if (!trigger || !label) return;
   const n = set.size;
   if (n === 0)      { label.textContent = ph[field]; trigger.classList.remove('has-selection'); }
@@ -1192,7 +1246,7 @@ function updateRuleTriggerLabel(field) {
   else              { label.textContent = `${n} selected`; trigger.classList.add('has-selection'); }
 }
 function closeRuleDropdowns() {
-  ['gym','time','difficulty','court'].forEach(f => {
+  ['venue','time','difficulty','court'].forEach(f => {
     document.getElementById(`rule-dd-list-${f}`)?.classList.remove('open');
     document.getElementById(`rule-dd-trigger-${f}`)?.classList.remove('open');
   });
@@ -1238,7 +1292,7 @@ async function submitRuleForm() {
     return;
   }
   const filters = {
-    gym:        [...ruleFormFilters.gym],
+    venue:      [...ruleFormFilters.venue],
     date:       editingRuleId ? (alertRules.find(r => r.id === editingRuleId)?.filters?.date || []) : [],
     time:       [...ruleFormFilters.time],
     difficulty: [...ruleFormFilters.difficulty],
