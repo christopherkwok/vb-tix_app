@@ -13,7 +13,10 @@ Scrapes the [NYUrban open play schedule](https://www.nyurban.com/?page_id=400&fi
 - Contextual multiselect filters — Difficulty, Court, Time dropdowns show only options present in current view
 - Multi-key sort — click any sort chip to add it; click again to reverse; rank badge shows priority
 - Email alerts — rule-based notifications via Brevo; configure in the in-app Alerts panel
-- Magic link sign-in — no password; each user manages their own alert rules
+  - Up to 5 rules per user; each rule filters by venue, time, difficulty, and/or court
+  - Historical combo catalog — alert rules can be created even when no sessions are currently listed (between seasons or pre-release), using values from past scrapes
+- Browser notifications — in-browser alerts when spots open; enable without logging in
+- Magic link sign-in — no password; each user manages their own alert rules (invite-only)
 - One-click unsubscribe — each alert email includes a link to disable that rule without logging in
 
 ---
@@ -24,10 +27,11 @@ Scrapes the [NYUrban open play schedule](https://www.nyurban.com/?page_id=400&fi
 Cloudflare Worker cron (*/5 * * * *)
     → POST GitHub Actions API → triggers scrape.yml (workflow_dispatch)
     → node scraper.js
-        → reads previous scrape_results from Supabase (to detect newly-opened spots)
+        → reads previous scrape_results from Supabase (games + catalog)
         → reads enabled alert_rules from Supabase
         → scrapes all 5 venues via NYUrban AJAX endpoint
-        → upserts game data to Supabase scrape_results table
+        → upserts game data + updated catalog to Supabase scrape_results table
+          (catalog accumulates unique venue/time/difficulty/court combos seen across all runs)
         → for each rule with newly-matched spots: sends email via Brevo HTTP API
           (email includes a one-click disable link with a unique disable_token)
 
@@ -35,8 +39,11 @@ GitHub Pages (docs/index.html)
     → on load: fetches scrape_results from Supabase using the anon key (no login needed)
     → if ?disable_token=<uuid> in URL: calls the disable-rule Edge Function, shows toast
     → Alerts button: opens side panel
+        → browser notifications section (visible without login)
         → signed out: shows magic link sign-in form
         → signed in: shows alert rules (CRUD) for the current user
+          rule form dropdowns draw from live games + historical catalog so filters
+          remain usable even when no sessions are currently posted
     → magic link flow: user enters email → Supabase sends link via Brevo SMTP
       → user clicks link → redirected back to app → onAuthStateChange fires → panel refreshes
 
@@ -86,6 +93,7 @@ The display name (`NYUrban Alerts`) is set in `BREVO_SENDER` config. The `brevos
 | `games` | jsonb | Array of all scraped game objects |
 | `last_scrape` | timestamptz | ISO timestamp of last successful scrape |
 | `errors` | jsonb | Map of `venueId → error message` for failed venues |
+| `catalog` | jsonb | Cumulative unique `{combos: [{venue, time, difficulty, court}]}` across all scrapes — used by the alert rule form when no live sessions are posted |
 
 RLS: public SELECT (anon key can read), writes use service key (bypasses RLS).
 
@@ -117,7 +125,7 @@ Each game object in the `games` array:
 | `user_email` | text | Used by scraper to address alert emails |
 | `label` | text | Display name for the rule (e.g. "Friday Intermediate") |
 | `enabled` | boolean | Whether the rule is active |
-| `filters` | jsonb | `{gym, date, time, difficulty, court}` — each an array of strings |
+| `filters` | jsonb | `{venue, date, time, difficulty, court}` — each an array of strings (`gym` is a legacy field kept for backward compat) |
 | `disable_token` | uuid | Random token embedded in alert emails for one-click disable |
 | `created_at` | timestamptz | Auto-set |
 
@@ -202,8 +210,14 @@ The anon key is safe to commit — it is subject to RLS and cannot bypass it.
 
 ### 6. Configure Supabase auth
 
-**Disable public sign-ups** (invite-only):
-Supabase → Authentication → Settings → toggle off **"Enable sign-ups"** → Save.
+**Keep sign-ups enabled** (required for magic link to work):
+Supabase → Authentication → Settings → confirm **"Enable sign-ups"** is ON. Disabling it also blocks magic link sign-ins for existing users (returns 422). Invite-only access is enforced at the app level — there is no self-registration form, and only users you explicitly invite can create accounts.
+
+**Set the Site URL:**
+Authentication → URL Configuration → **Site URL**:
+```
+https://YOUR_USERNAME.github.io/vb-tix_app/
+```
 
 **Add your site to the redirect allow-list:**
 Authentication → URL Configuration → add to Redirect URLs:
@@ -390,10 +404,15 @@ The **Available** column is a number (`3`, `0`) or `"Sold Out"`.
 Rules fire **once per opening event** — when a session transitions from unavailable to available. If the same session sells out and reopens, it fires again. Alerts don't repeat while a session stays continuously available across scrapes.
 
 Filter matching per field:
-- `gym`, `date`, `time` — case-insensitive partial match
-- `difficulty`, `court` — case-insensitive exact match
+- `venue`, `difficulty`, `court` — case-insensitive exact match
+- `date`, `time` — case-insensitive partial match
+- `gym` — legacy partial match field kept for backward compatibility with old rules
 
 A field with no values selected matches anything (wildcard).
+
+### Historical combo catalog
+
+The scraper accumulates a `catalog` of unique `(venue, time, difficulty, court)` combinations seen across all scrapes and stores it in `scrape_results.catalog.combos`. When sessions are not currently posted on the NYUrban website (between seasons or pre-release), the alert rule form draws from this catalog so users can still create standing alerts for their preferred sessions. The catalog grows automatically with each scrape and never needs to be reset.
 
 ### One-click unsubscribe flow
 
@@ -427,7 +446,9 @@ Each script saves raw HTML to `debug/debug-output/`.
 | "Could not load game data" on page load | Trigger scraper manually: Actions → Scrape NYUrban → Run workflow |
 | Game data not updating | Check GitHub Actions logs; verify `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` secrets are set |
 | Sign-in email not arriving | Supabase → Logs → Auth for SMTP error; confirm Brevo SMTP key (`xsmtpsib-...`) is in the Password field (not the API key); confirm Username is the Brevo-assigned SMTP login (Brevo → SMTP & API → SMTP tab → "Your SMTP Settings"), not your account email |
-| Magic link redirects to wrong URL | Add Pages URL to Supabase → Auth → URL Configuration → Redirect URLs |
+| Magic link returns 422 / "Signup disabled" | Re-enable sign-ups: Supabase → Authentication → Settings → turn **"Enable sign-ups"** ON (disabling it also blocks magic link for existing users) |
+| Magic link redirects to wrong URL | Set the correct Site URL: Supabase → Auth → URL Configuration → Site URL → `https://YOUR_USERNAME.github.io/vb-tix_app/`; also add that URL to Redirect URLs |
+| Alert rule form shows no filter options | Trigger a manual scrape to seed the catalog: Actions → Scrape NYUrban → Run workflow |
 | Edge Function returns 401 | JWT verification must be turned off on the `disable-rule` function |
 | Disable link shows "already used" | Rule is already disabled — re-enable it from the Alerts panel |
 | Cloudflare Worker logs non-204 | Verify PAT has Actions Read/Write permission and hasn't expired; run `wrangler secret put GITHUB_PAT` to update it |
