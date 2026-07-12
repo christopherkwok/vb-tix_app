@@ -161,7 +161,8 @@ create table public.scrape_results (
   id          int primary key default 1,
   games       jsonb not null default '[]',
   last_scrape timestamptz,
-  errors      jsonb not null default '{}'
+  errors      jsonb not null default '{}',
+  catalog     jsonb not null default '{}'
 );
 insert into public.scrape_results (id) values (1) on conflict do nothing;
 alter table public.scrape_results enable row level security;
