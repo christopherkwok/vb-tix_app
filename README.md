@@ -151,9 +151,11 @@ git push -u origin main
 
 ### 2. Enable GitHub Pages
 
-Repo → Settings → Pages → Source: **Deploy from a branch** → Branch: `main` / Folder: `/docs` → Save.
+Repo → Settings → Pages → Source: **GitHub Actions** → Save.
 
 Your live URL: `https://YOUR_USERNAME.github.io/vb-tix_app/`
+
+Pages deploys automatically on every push to `main` via the **Deploy Pages** workflow (`deploy-pages.yml`). The same workflow can be triggered manually from the Actions tab if needed.
 
 ### 3. Enable GitHub Actions
 
@@ -452,7 +454,7 @@ Each script saves raw HTML to `debug/debug-output/`.
 | Edge Function returns 401 | JWT verification must be turned off on the `disable-rule` function |
 | Disable link shows "already used" | Rule is already disabled — re-enable it from the Alerts panel |
 | Cloudflare Worker logs non-204 | Verify PAT has Actions Read/Write permission and hasn't expired; run `wrangler secret put GITHUB_PAT` to update it |
-| Pages shows stale content after merge | Run the Deploy Pages workflow manually: Actions → Deploy Pages → Run workflow |
+| Pages shows stale content after merge | Deploy Pages runs automatically on every push to main; force manually: Actions → Deploy Pages → Run workflow |
 
 ---
 
