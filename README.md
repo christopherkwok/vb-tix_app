@@ -43,7 +43,9 @@ GitHub Pages (docs/index.html)
         → signed out: shows magic link sign-in form
         → signed in: shows alert rules (CRUD) for the current user
           rule form dropdowns draw from live games + historical catalog so filters
-          remain usable even when no sessions are currently posted
+          remain usable even when no sessions are currently posted;
+          selecting a venue narrows time options to that venue's history,
+          selecting a time narrows difficulty, selecting a difficulty narrows court
     → magic link flow: user enters email → Supabase sends link via Brevo SMTP
       → user clicks link → redirected back to app → onAuthStateChange fires → panel refreshes
 
@@ -390,6 +392,8 @@ action=my_open_play_contentbb&buttonid=BUTTON_ID&gametypeid=1&filterid=FILTER_ID
 | Brandeis / Fri | 6 | 3 |
 | Brandeis / Sun | 18 | 4 |
 | Clinics | 32 | 5 |
+
+The venue label strings (`"Laguardia / Fri"`, `"Beacon / Fri"`, etc.) are the canonical identifiers used for exact-match filtering throughout the app. They are defined in two places that must stay in sync: `VENUES[].label` in `scraper.js` and `VENUE_LABELS` (a hardcoded array constant) in `docs/index.html`. Adding a new venue requires updating both.
 
 ### Column parsing
 
