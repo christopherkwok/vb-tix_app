@@ -139,11 +139,12 @@ function gameMatchesRule(game, rule) {
     const gv = (gameVal || '').toLowerCase();
     return exact ? vals.some(v => gv === v.toLowerCase()) : vals.some(v => gv.includes(v.toLowerCase()));
   }
-  return matchesFilter(game.gym, f.gym, false)
-      && matchesFilter(game.date, f.date, false)
-      && matchesFilter(game.time, f.time, false)
-      && matchesFilter(game.difficulty, f.difficulty, true)
-      && matchesFilter(game.court, f.court, true);
+  return matchesFilter(game.venueLabel, f.venue, true)
+      && matchesFilter(game.gym,         f.gym,   false)
+      && matchesFilter(game.date,        f.date,  false)
+      && matchesFilter(game.time,        f.time,  false)
+      && matchesFilter(game.difficulty,  f.difficulty, true)
+      && matchesFilter(game.court,       f.court,      true);
 }
 
 // ── Email via Brevo ────────────────────────────────────────────────────────────
@@ -219,7 +220,7 @@ async function main() {
   }
 
   // Load previous game state to detect newly-available spots
-  const { data: prevData } = await supabaseRequest('GET', '/scrape_results?id=eq.1&select=games');
+  const { data: prevData } = await supabaseRequest('GET', '/scrape_results?id=eq.1&select=games,catalog');
   const prevGames  = (prevData && prevData[0] && prevData[0].games) || [];
   const prevAvailIds = new Set(prevGames.filter(g => g.available).map(g => g.id));
 
@@ -266,10 +267,25 @@ async function main() {
     }
   }
 
+  // Accumulate historical combo catalog (venue + time + difficulty + court fingerprints)
+  const prevCombos   = (prevData && prevData[0] && prevData[0].catalog && prevData[0].catalog.combos) || [];
+  const existingKeys = new Set(prevCombos.map(c => `${c.venue}|${c.time}|${c.difficulty}|${c.court ?? ''}`));
+  const newCombos    = allGames
+    .map(g => ({
+      venue:      g.venueLabel,
+      time:       g.time,
+      difficulty: g.difficulty,
+      court:      (g.court && g.court !== 'N/A') ? g.court : null,
+    }))
+    .filter(c => c.venue && c.time && c.difficulty)
+    .filter(c => !existingKeys.has(`${c.venue}|${c.time}|${c.difficulty}|${c.court ?? ''}`));
+  const catalog = { combos: [...prevCombos, ...newCombos] };
+  if (newCombos.length) console.log(`  📚 Catalog: +${newCombos.length} new combo(s) → ${catalog.combos.length} total`);
+
   // Write updated data
   const { status, data: writeResult } = await supabaseRequest(
     'POST', '/scrape_results',
-    { id: 1, games: allGames, last_scrape: new Date().toISOString(), errors },
+    { id: 1, games: allGames, last_scrape: new Date().toISOString(), errors, catalog },
     { 'Prefer': 'resolution=merge-duplicates' }
   );
   if (status < 200 || status >= 300) {
