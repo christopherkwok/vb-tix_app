@@ -1085,10 +1085,11 @@ async function loadRules() {
 
 function renderRulesList(rules) {
   const container = document.getElementById('rules-list');
-  if (!rules.length) {
+  const visible = editingRuleId ? rules.filter(r => r.id !== editingRuleId) : rules;
+  if (!visible.length && !rules.length) {
     container.innerHTML = '<div style="font-size:.82rem;color:var(--gray500);font-style:italic">No rules yet — add one below.</div>';
   } else {
-    container.innerHTML = rules.map(rule => {
+    container.innerHTML = visible.map(rule => {
       const TAG_LABELS = { venue:'Venue', gym:'Gym', time:'Time', difficulty:'Difficulty', court:'Court' };
       const tags = Object.entries(rule.filters || {})
         .filter(([k, v]) => k !== 'date' && v && v.length)
@@ -1155,6 +1156,7 @@ function editRule(id) {
   document.getElementById('rule-form-title').textContent  = 'Edit rule';
   document.getElementById('rule-form-submit').textContent = 'Update rule';
   populateRuleFormDropdowns();
+  renderRulesList(alertRules);
   document.getElementById('rule-form').classList.add('open');
   document.getElementById('add-rule-btn').style.display = 'none';
 }
@@ -1164,6 +1166,7 @@ function hideRuleForm() {
   document.getElementById('add-rule-btn').style.display = '';
   editingRuleId = null;
   closeRuleDropdowns();
+  renderRulesList(alertRules);
 }
 
 function buildComboPool() {
