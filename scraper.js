@@ -256,11 +256,16 @@ async function main() {
       const matched = newlyAvail.filter(g => gameMatchesRule(g, rule));
       if (matched.length === 0) continue;
       const lines = matched.map(g =>
-        `• ${g.venueLabel} | ${g.date} | ${g.time} | ${g.difficulty}${g.court !== 'N/A' ? ' | ' + g.court : ''} | ${g.gym} | ${g.spots} spots`
+        `• ${g.venueLabel} | ${g.date} | ${g.time} | ${g.difficulty}${g.court !== 'N/A' ? ' | ' + g.court : ''} | ${g.spots} spot${g.spots === '1' ? '' : 's'} available`
       ).join('\n');
-      const subject    = `🏐 [${rule.label}] ${matched.length} spot${matched.length > 1 ? 's' : ''} just opened!`;
+      const g0      = matched[0];
+      const g0court = g0.court !== 'N/A' ? ` | ${g0.court}` : '';
+      const sessionSummary = matched.length === 1
+        ? `${g0.venueLabel} | ${g0.date} | ${g0.time} | ${g0.difficulty}${g0court}`
+        : `${matched.length} sessions — ${g0.venueLabel}${matched.length > 1 ? ` + ${matched.length - 1} more` : ''}`;
+      const subject    = `🏐 ${matched.length} spot${matched.length > 1 ? 's' : ''} just opened — ${sessionSummary}`;
       const disableUrl = `https://christopherkwok.github.io/vb-tix_app/?disable_token=${rule.disable_token}`;
-      const body       = `Your alert "${rule.label}" matched ${matched.length} newly available session${matched.length > 1 ? 's' : ''}:\n\n${lines}\n\nRegister now: ${PAGE_URL}\n\n---\nTo disable this alert: ${disableUrl}`;
+      const body       = `Alert rule: "${rule.label}"\n\nNewly available session${matched.length > 1 ? 's' : ''}:\n\n${lines}\n\nBook now: ${PAGE_URL}\n\n---\nTo disable this alert: ${disableUrl}`;
       const to = rule.user_email;
       console.log(`  📧 Emailing "${rule.label}" → ${to} (${matched.length} match(es))`);
       await sendEmail(subject, body, to, brevoKey, brevoSender);

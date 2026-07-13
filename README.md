@@ -410,6 +410,15 @@ Filter matching per field:
 
 A field with no values selected matches anything (wildcard).
 
+### Alert email format
+
+Each alert email subject shows the session details of the opening event rather than the rule name:
+
+- **Single match:** `🏐 1 spot just opened — Laguardia / Fri | Fri 7/11 | 7:00 pm | Intermediate`
+- **Multiple matches:** `🏐 3 spots just opened — Laguardia / Fri + 2 more`
+
+The email body includes the rule name at the top followed by the full session list.
+
 ### Historical combo catalog
 
 The scraper accumulates a `catalog` of unique `(venue, time, difficulty, court)` combinations seen across all scrapes and stores it in `scrape_results.catalog.combos`. When sessions are not currently posted on the NYUrban website (between seasons or pre-release), the alert rule form draws from this catalog so users can still create standing alerts for their preferred sessions. The catalog grows automatically with each scrape and never needs to be reset.
