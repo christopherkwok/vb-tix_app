@@ -368,37 +368,12 @@
   <!-- New-spots banner -->
   <div id="notif-banner">🎉 <strong>New spots just opened!</strong> <span id="notif-detail"></span></div>
 
-  <!-- Venue tabs -->
+  <!-- Venue tabs — populated dynamically by renderVenueTabs() after data loads -->
   <div class="venue-tabs" id="venue-tabs">
     <button class="venue-tab active" data-venue="all" onclick="setVenue('all')">
       <span class="tab-dot empty" id="dot-all"></span>
       All Venues
       <span class="tab-count" id="count-all">—</span>
-    </button>
-    <button class="venue-tab" data-venue="laguardia" onclick="setVenue('laguardia')">
-      <span class="tab-dot empty" id="dot-laguardia"></span>
-      Laguardia / Fri
-      <span class="tab-count" id="count-laguardia">—</span>
-    </button>
-    <button class="venue-tab" data-venue="beacon" onclick="setVenue('beacon')">
-      <span class="tab-dot empty" id="dot-beacon"></span>
-      Beacon / Fri
-      <span class="tab-count" id="count-beacon">—</span>
-    </button>
-    <button class="venue-tab" data-venue="brandeis-fri" onclick="setVenue('brandeis-fri')">
-      <span class="tab-dot empty" id="dot-brandeis-fri"></span>
-      Brandeis / Fri
-      <span class="tab-count" id="count-brandeis-fri">—</span>
-    </button>
-    <button class="venue-tab" data-venue="brandeis-sun" onclick="setVenue('brandeis-sun')">
-      <span class="tab-dot empty" id="dot-brandeis-sun"></span>
-      Brandeis / Sun
-      <span class="tab-count" id="count-brandeis-sun">—</span>
-    </button>
-    <button class="venue-tab" data-venue="clinics" onclick="setVenue('clinics')">
-      <span class="tab-dot empty" id="dot-clinics"></span>
-      Clinics
-      <span class="tab-count" id="count-clinics">—</span>
     </button>
   </div>
 
@@ -904,9 +879,29 @@ function updateDropdowns() {
   renderDropdown('time',  times);
 }
 
+// ── Venue tabs (dynamic) ──────────────────────────────────────────────────────
+function renderVenueTabs() {
+  const seen = new Set(), venues = [];
+  for (const g of allGames) {
+    if (!seen.has(g.venueId)) { seen.add(g.venueId); venues.push({ id: g.venueId, label: g.venueLabel }); }
+  }
+  const container = document.getElementById('venue-tabs');
+  const allBtn    = container.querySelector('[data-venue="all"]');
+  container.innerHTML = '';
+  container.appendChild(allBtn);
+  for (const v of venues) {
+    const btn = document.createElement('button');
+    btn.className          = 'venue-tab' + (activeVenues.has(v.id) ? ' active' : '');
+    btn.dataset.venue      = v.id;
+    btn.onclick            = () => setVenue(v.id);
+    btn.innerHTML = `<span class="tab-dot empty" id="dot-${v.id}"></span>${esc(v.label)}<span class="tab-count" id="count-${v.id}">—</span>`;
+    container.appendChild(btn);
+  }
+}
+
 // ── Tab counts + dots ─────────────────────────────────────────────────────────
 function updateTabs(games) {
-  const venueIds = ['laguardia','beacon','brandeis-fri','brandeis-sun','clinics'];
+  const venueIds = [...new Set(games.map(g => g.venueId))];
   const allOpen  = games.filter(g => g.available).length;
   document.getElementById('count-all').textContent = games.length;
   const dotAll = document.getElementById('dot-all');
@@ -1028,6 +1023,7 @@ async function fetchGames() {
     prevAvailableIds = nowAvail;
 
     allGames = games;
+    renderVenueTabs();
     updateTabs(allGames);
     updateDropdowns();
     renderGames();
