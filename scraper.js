@@ -199,6 +199,35 @@ function supabaseRequest(method, path, body, extraHeaders = {}) {
   });
 }
 
+// ── Venue discovery ────────────────────────────────────────────────────────────
+async function discoverVenues() {
+  const { status, body } = await new Promise((resolve, reject) => {
+    const req = https.get(PAGE_URL, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120' },
+      timeout: 20000,
+    }, res => {
+      let d = ''; res.setEncoding('utf8');
+      res.on('data', c => d += c);
+      res.on('end', () => resolve({ status: res.statusCode, body: d }));
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out')); });
+  });
+  if (status !== 200) throw new Error(`Main page HTTP ${status}`);
+
+  // Match onclick="SwitchMenu(this,1,FILTERID,...)" followed by label text
+  const re = /onclick="SwitchMenu\([^,]+,\s*1,\s*(\d+),[^"]*\)"[^>]*>\s*([^<\n]+?)\s*</gi;
+  const venues = [];
+  let m;
+  while ((m = re.exec(body)) !== null) {
+    const filterId = Number(m[1]);
+    const label    = htmlDecode(m[2]).replace(/\.$/, '').trim();
+    const id       = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-$/, '');
+    venues.push({ id, label, filterId, buttonId: venues.length + 1 });
+  }
+  return venues;
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────────
 async function main() {
   const brevoKey    = process.env.BREVO_KEY    || '';
@@ -228,10 +257,24 @@ async function main() {
   const { data: rulesData } = await supabaseRequest('GET', '/alert_rules?enabled=eq.true&select=*');
   const rules = rulesData || [];
 
+  // Discover venues dynamically; fall back to hardcoded list if page parse fails
+  let venues = VENUES;
+  try {
+    const discovered = await discoverVenues();
+    if (discovered.length > 0) {
+      const knownFilterIds = new Set(VENUES.map(v => v.filterId));
+      const newVenues = discovered.filter(v => !knownFilterIds.has(v.filterId));
+      venues = [...VENUES, ...newVenues];
+      if (newVenues.length) console.log(`  🆕 Discovered ${newVenues.length} new venue(s): ${newVenues.map(v => v.label).join(', ')}`);
+    }
+  } catch (e) {
+    console.warn(`  ⚠️  Venue discovery failed (${e.message}), using hardcoded list`);
+  }
+
   // Scrape all venues
   console.log(`[${new Date().toISOString()}] Scraping all venues…`);
   const allGames = [], errors = {};
-  for (const venue of VENUES) {
+  for (const venue of venues) {
     try {
       const { status, body } = await postAjax(venue.filterId, venue.buttonId);
       if (status !== 200) throw new Error(`HTTP ${status}`);

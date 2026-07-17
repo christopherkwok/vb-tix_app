@@ -677,7 +677,11 @@ async function signOut() {
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
-const VENUE_LABELS = ['Beacon / Fri', 'Brandeis / Fri', 'Brandeis / Sun', 'Clinics', 'Laguardia / Fri'];
+function getVenueLabels() {
+  const fromGames   = allGames.map(g => g.venueLabel).filter(Boolean);
+  const fromCatalog = knownCombos.map(c => c.venue).filter(Boolean);
+  return [...new Set([...fromGames, ...fromCatalog])].sort();
+}
 
 let allGames           = [];
 let knownCombos        = [];
@@ -1202,7 +1206,7 @@ function populateRuleFormDropdowns(fields) {
   );
 
   const OPTIONS = {
-    venue:      VENUE_LABELS,
+    venue:      getVenueLabels(),
     time:       sortTimes([...new Set(narrow(sv, [], []).map(c => c.time).filter(Boolean))]),
     difficulty: [...new Set(narrow(sv, st, []).map(c => c.difficulty).filter(Boolean))].sort(),
     court:      [...new Set(narrow(sv, st, sd).map(c => c.court).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
