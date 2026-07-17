@@ -14,11 +14,12 @@ const AJAX_URL = 'https://www.nyurban.com/wp-admin/admin-ajax.php';
 const PAGE_URL = 'https://www.nyurban.com/?page_id=400&filter_id=1&gametypeid=1';
 
 const VENUES = [
-  { id: 'laguardia',    label: 'Laguardia / Fri',  filterId: 35, buttonId: 1 },
-  { id: 'beacon',       label: 'Beacon / Fri',      filterId: 34, buttonId: 2 },
-  { id: 'brandeis-fri', label: 'Brandeis / Fri',    filterId: 6,  buttonId: 3 },
-  { id: 'brandeis-sun', label: 'Brandeis / Sun',    filterId: 18, buttonId: 4 },
-  { id: 'clinics',      label: 'Clinics',           filterId: 32, buttonId: 5 },
+  { id: 'laguardia',       label: 'Laguardia / Fri',          filterId: 35, buttonId: 1 },
+  { id: 'w50th-street',    label: 'W50th Street Campus / Fri', filterId: 43, buttonId: 2 },
+  { id: 'beacon',          label: 'Beacon / Fri',              filterId: 34, buttonId: 3 },
+  { id: 'brandeis-fri',    label: 'Brandeis / Fri',            filterId: 6,  buttonId: 4 },
+  { id: 'brandeis-sun',    label: 'Brandeis / Sun',            filterId: 18, buttonId: 5 },
+  { id: 'clinics',         label: 'Clinics',                   filterId: 32, buttonId: 6 },
 ];
 
 // ── HTTP ───────────────────────────────────────────────────────────────────────
@@ -215,15 +216,16 @@ async function discoverVenues() {
   });
   if (status !== 200) throw new Error(`Main page HTTP ${status}`);
 
-  // Match onclick="SwitchMenu(this,1,FILTERID,...)" followed by label text
-  const re = /onclick="SwitchMenu\([^,]+,\s*1,\s*(\d+),[^"]*\)"[^>]*>\s*([^<\n]+?)\s*</gi;
+  // Match href="javascript:SwitchMenu('BUTTONID','1','FILTERID',...)">LABEL</a>
+  const re = /href="javascript:SwitchMenu\('(\d+)','\d+','(\d+)'[^"]*\)"[^>]*>([^<]+)<\/a>/gi;
   const venues = [];
   let m;
   while ((m = re.exec(body)) !== null) {
-    const filterId = Number(m[1]);
-    const label    = htmlDecode(m[2]).replace(/\.$/, '').trim();
+    const buttonId = Number(m[1]);
+    const filterId = Number(m[2]);
+    const label    = htmlDecode(m[3]).replace(/\.$/, '').trim();
     const id       = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-$/, '');
-    venues.push({ id, label, filterId, buttonId: venues.length + 1 });
+    venues.push({ id, label, filterId, buttonId });
   }
   return venues;
 }
