@@ -388,10 +388,11 @@ action=my_open_play_contentbb&buttonid=BUTTON_ID&gametypeid=1&filterid=FILTER_ID
 | Venue | filterId | buttonId |
 |-------|----------|----------|
 | Laguardia / Fri | 35 | 1 |
-| Beacon / Fri | 34 | 2 |
-| Brandeis / Fri | 6 | 3 |
-| Brandeis / Sun | 18 | 4 |
-| Clinics | 32 | 5 |
+| W50th Street Campus / Fri | 43 | 2 |
+| Beacon / Fri | 34 | 3 |
+| Brandeis / Fri | 6 | 4 |
+| Brandeis / Sun | 18 | 5 |
+| Clinics | 32 | 6 |
 
 The venue label strings (`"Laguardia / Fri"`, `"Beacon / Fri"`, etc.) are the canonical identifiers used for exact-match filtering throughout the app. New venues are discovered automatically each scrape run by parsing the `SwitchMenu()` onclick handlers on the NYUrban main page — any filterId not already in the hardcoded `VENUES` list is added for that run. The frontend derives its venue list dynamically from `allGames` + `knownCombos` (`getVenueLabels()` in `docs/index.html`), so new venues appear in the alert form automatically after the first scrape that includes them. The hardcoded `VENUES` array in `scraper.js` serves as the fallback if discovery fails and preserves stable `id` slugs for existing venues.
 
